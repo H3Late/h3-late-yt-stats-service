@@ -92,6 +92,16 @@ public class LivestreamService {
         }
 
         if (
+                existingVideo.getScheduledStart() == null
+                        && liveDetails != null
+                        && liveDetails.getScheduledStartTime() != null
+        ) {
+            existingVideo.setScheduledStart(Instant.parse(liveDetails.getScheduledStartTime()));
+            log.info("Backfilled scheduledStart for videoId=[{}] from YouTube API", videoId);
+            hasUpdates = true;
+        }
+
+        if (
                 existingVideo.getActualStart() == null
                         && liveDetails != null
                         && liveDetails.getActualStartTime() != null
@@ -99,21 +109,25 @@ public class LivestreamService {
             existingVideo.setStatus((StreamStatus.LIVE));
             Instant actualStart = Instant.parse(liveDetails.getActualStartTime());
             existingVideo.setActualStart(actualStart);
-            long lateTimeSeconds = java.time.Duration.between(
-                    existingVideo.getScheduledStart(),
-                    actualStart
-            ).getSeconds();
-            if (lateTimeSeconds > 10) {
-                existingVideo.setTimeStatus(TimeStatus.LATE);
-            } else if (lateTimeSeconds < 0) {
-                existingVideo.setTimeStatus(TimeStatus.EARLY);
+            if (existingVideo.getScheduledStart() != null) {
+                long lateTimeSeconds = java.time.Duration.between(
+                        existingVideo.getScheduledStart(),
+                        actualStart
+                ).getSeconds();
+                if (lateTimeSeconds > 10) {
+                    existingVideo.setTimeStatus(TimeStatus.LATE);
+                } else if (lateTimeSeconds < 0) {
+                    existingVideo.setTimeStatus(TimeStatus.EARLY);
+                } else {
+                    existingVideo.setTimeStatus(TimeStatus.ON_TIME);
+                }
+                existingVideo.setDiffSeconds(lateTimeSeconds);
+                log.info("Livestream with videoId=[{}] has started. Actual start time: {}, Scheduled start time: {}, Late time (seconds): {}, Time status: {}",
+                        videoId, actualStart, existingVideo.getScheduledStart(), lateTimeSeconds, existingVideo.getTimeStatus()
+                );
             } else {
-                existingVideo.setTimeStatus(TimeStatus.ON_TIME);
+                log.warn("Livestream with videoId=[{}] has actualStartTime but no scheduledStartTime. Skipping lateness calculation.", videoId);
             }
-            existingVideo.setDiffSeconds(lateTimeSeconds);
-            log.info("Livestream with videoId=[{}] has started. Actual start time: {}, Scheduled start time: {}, Late time (seconds): {}, Time status: {}",
-                    videoId, actualStart, existingVideo.getScheduledStart(), lateTimeSeconds, existingVideo.getTimeStatus()
-            );
             hasUpdates = true;
         }
 
@@ -124,13 +138,17 @@ public class LivestreamService {
         ) {
             existingVideo.setStatus(StreamStatus.ENDED);
             Instant actualEnd = Instant.parse(liveDetails.getActualEndTime());
-            long totalDurationSeconds = java.time.Duration.between(
-                    existingVideo.getActualStart(),
-                    actualEnd
-            ).getSeconds();
             existingVideo.setActualEnd(actualEnd);
-            existingVideo.setTotalDurationSeconds(totalDurationSeconds);
-            log.info("Livestream with videoId=[{}] has ended with a total duration of {}. Actual end time: {}", videoId, totalDurationSeconds, actualEnd);
+            if (existingVideo.getActualStart() != null) {
+                long totalDurationSeconds = java.time.Duration.between(
+                        existingVideo.getActualStart(),
+                        actualEnd
+                ).getSeconds();
+                existingVideo.setTotalDurationSeconds(totalDurationSeconds);
+                log.info("Livestream with videoId=[{}] has ended with a total duration of {}. Actual end time: {}", videoId, totalDurationSeconds, actualEnd);
+            } else {
+                log.warn("Livestream with videoId=[{}] has actualEndTime but no actualStartTime. Skipping duration calculation.", videoId);
+            }
             hasUpdates = true;
         }
 
