@@ -22,7 +22,7 @@ public class Vote {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = true) // Set to true in order to not tie the entity to a specific video, allowing for more flexible use cases
     private String videoId; // Foreign key (logical or actual)
 
     @Column(nullable = false)

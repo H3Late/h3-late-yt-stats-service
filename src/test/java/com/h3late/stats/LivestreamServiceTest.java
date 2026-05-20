@@ -33,12 +33,13 @@ public class LivestreamServiceTest {
     private YoutubeApiService youtubeApiService;
     private LivestreamRepository livestreamRepository;
     private LivestreamService livestreamService;
-
+    private VoteService voteService;
     @BeforeEach
     public void setUp() {
         youtubeApiService = Mockito.mock(YoutubeApiService.class);
         livestreamRepository = Mockito.mock(LivestreamRepository.class);
-        livestreamService = new LivestreamService(livestreamRepository, youtubeApiService);
+        voteService = Mockito.mock(VoteService.class);  
+        livestreamService = new LivestreamService(livestreamRepository, youtubeApiService, voteService);
     }
 
     // ==================== HELPER METHODS ====================
