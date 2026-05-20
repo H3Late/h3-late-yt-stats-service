@@ -23,11 +23,18 @@ public class VoteController {
         this.voteService = voteService;
     }
 
+    // Two separate endpoints for casting votes: one for votes tied to a specific stream (with videoId) and one for pending votes (without videoId)
+    @PostMapping 
+    public ResponseEntity<Vote> castVote(@RequestBody Vote voteRequest) { 
+        return ResponseEntity.ok(voteService.castVote(voteRequest));
+    }
+
+    // This endpoint allows for casting a vote that is directly tied to a specific stream (videoId), which can be used for real-time voting during the stream
     @PostMapping("/{videoId}")
-    public ResponseEntity<Vote> castVote(
+    public ResponseEntity<Vote> castVoteForVideo(
             @PathVariable String videoId,
             @RequestBody Vote voteRequest) {
-        return ResponseEntity.ok(voteService.castVote(videoId, voteRequest));
+        return ResponseEntity.ok(voteService.castVote(voteRequest));
     }
 
 
