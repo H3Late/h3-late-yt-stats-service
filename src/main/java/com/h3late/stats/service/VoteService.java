@@ -26,27 +26,7 @@ public class VoteService {
         this.voteRepository = voteRepository;
         this.livestreamRepository = livestreamRepository;
         this.leaderboardRepository = leaderboardRepository;
-    }
-
-    // Might want to delete the castVote method that takes a videoId and only keep the one without videoId, 
-    // since the one with videoId can be used for real-time voting during the stream,
-    // while the one without videoId can be used for pre-voting before the stream starts, 
-    // and then attribute those votes to the stream once it starts. 
-    // This would simplify the API and make it more flexible,
-    // allowing for both real-time voting and pre-voting without needing separate endpoints.
-    public Vote castVote(String videoId, Vote voteRequest) {
-        // Compability method for the castVote endpoint that takes a videoId, which can be used for real-time voting during the stream.
-        // It simply checks for duplicate names within the same stream (videoId) 
-        // and then delegates to the main castVote method for the actual saving of the vote.
-        if (videoId == null || videoId.trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "videoId cannot be empty!");
-        }
-
-        if (voteRepository.existsByVideoIdAndUserNameIgnoreCase(videoId, voteRequest.getUserName())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "That name has already voted for this stream!");
-        }
-        return castVote(voteRequest);
-    }
+    } 
 
     // Main method for casting votes, 
     // which is used for pre-voting before the stream starts.
@@ -86,17 +66,6 @@ public class VoteService {
     @Transactional 
     public void attributePendingVotes(String videoId) {
         voteRepository.attributePendingVotesToStream(videoId); 
-    }
-    // This method can be called to release votes from a stream by setting their videoId to null, 
-    // allowing them to be attributed to a different stream later on
-    @Transactional
-    public int releaseVotesForStream(String videoId) {
-        if (videoId == null || videoId.trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "videoId cannot be empty!");
-        }
-
-        return voteRepository.releaseVotesForStream(videoId);
-    }
-
+    } 
 
 }

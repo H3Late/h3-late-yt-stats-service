@@ -202,13 +202,7 @@ public class LivestreamService {
             Livestream livestream = existingVideo.get();
             livestream.setStatus(StreamStatus.CANCELLED);
             livestream.setTimeStatus(TimeStatus.CANCELLED);
-            livestreamRepository.save(livestream);
-
-            if(livestream.getActualStart() == null) {
-                // Release any pending votes for the stream by setting their videoId to null,
-                // allowing them to be attributed to a different stream later on
-                voteService.releaseVotesForStream(videoId);
-            }
+            livestreamRepository.save(livestream); 
             
 
             log.info("Marked livestream with videoId=[{}] as cancelled.", videoId);

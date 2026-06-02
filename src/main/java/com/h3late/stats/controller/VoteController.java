@@ -29,15 +29,6 @@ public class VoteController {
         return ResponseEntity.ok(voteService.castVote(voteRequest));
     }
 
-    // This endpoint allows for casting a vote that is directly tied to a specific stream (videoId), which can be used for real-time voting during the stream
-    @PostMapping("/{videoId}")
-    public ResponseEntity<Vote> castVoteForVideo(
-            @PathVariable String videoId,
-            @RequestBody Vote voteRequest) {
-        return ResponseEntity.ok(voteService.castVote(voteRequest));
-    }
-
-
     @GetMapping("/leaderboard/latest")
     public ResponseEntity<Page<LeaderboardEntry>> getLatestLeaderboard(
             @RequestParam(required = false) String search, // Add optional search param
