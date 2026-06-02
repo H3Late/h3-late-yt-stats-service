@@ -18,11 +18,6 @@ public interface VoteRepository extends JpaRepository<Vote, Long> {
     @Modifying
     @Query("UPDATE Vote v SET v.videoId = :videoId WHERE v.videoId is NULL")
     int attributePendingVotesToStream(@Param("videoId") String videoId);
-
-    // This method can be used to release votes from a stream by setting the videoId to null for all votes that match the videoId,
-    // allowing them to be attributed to a different stream later on
-    @Modifying
-    @Query("UPDATE Vote v SET v.videoId = NULL WHERE v.videoId = :videoId")
-    int releaseVotesForStream(@Param("videoId") String videoId);
+ 
 
 }
