@@ -7,7 +7,6 @@ import com.h3late.stats.entity.StreamStatus;
 import com.h3late.stats.entity.TimeStatus;
 import com.h3late.stats.repository.LivestreamRepository;
 import com.h3late.stats.service.LivestreamService;
-import com.h3late.stats.service.VoteService;
 import com.h3late.stats.service.YoutubeApiService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,7 +17,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import com.h3late.stats.service.VoteService;
 
 import java.time.Instant;
 import java.util.List;
@@ -35,13 +33,12 @@ public class LivestreamServiceTest {
     private YoutubeApiService youtubeApiService;
     private LivestreamRepository livestreamRepository;
     private LivestreamService livestreamService;
-    private VoteService voteService;
+
     @BeforeEach
     public void setUp() {
         youtubeApiService = Mockito.mock(YoutubeApiService.class);
         livestreamRepository = Mockito.mock(LivestreamRepository.class);
-        voteService = Mockito.mock(VoteService.class);  
-        livestreamService = new LivestreamService(livestreamRepository, youtubeApiService, voteService);
+        livestreamService = new LivestreamService(livestreamRepository, youtubeApiService);
     }
 
     // ==================== HELPER METHODS ====================
