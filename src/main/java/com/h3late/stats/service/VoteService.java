@@ -42,7 +42,7 @@ public class VoteService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username cannot be empty!");
         }
 
-        if(voteRequest.getDiffSeconds() == null || voteRequest.getDiffSeconds() < 0) {
+        if(voteRequest.getDiffSeconds() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "diffSeconds must be a non-negative integer!");
         }
 
