@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -25,23 +26,34 @@ public class VoteService {
         this.voteRepository = voteRepository;
         this.livestreamRepository = livestreamRepository;
         this.leaderboardRepository = leaderboardRepository;
-    }
-    public Vote castVote(String videoId, Vote voteRequest) {
-        // 1. Find the livestream
-        Livestream stream = livestreamRepository.findById(videoId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Stream not found"));
+    } 
 
-        // 2. Logic: Only allow voting if status is SCHEDULED
-        if (stream.getStatus() != StreamStatus.SCHEDULED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voting is only open for scheduled streams!");
+    // Main method for casting votes, 
+    // which is used for pre-voting before the stream starts.
+    // It checks for duplicate names across all pending votes (videoId is null) 
+    // and then saves the vote with a null videoId, allowing it to be attributed to a stream later on.
+    public Vote castVote(Vote voteRequest) {
+        // For pending votes (without videoId), 
+        // we only check for duplicate names across all pending votes, 
+        // allowing the same name to be used in different streams as long as they are not pending at the same time.
+        String username = voteRequest.getUserName(); 
+
+        if(username == null || username.trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username cannot be empty!");
         }
 
-        // 3. Logic: Check for duplicate name for this video
-        if (voteRepository.existsByVideoIdAndUserNameIgnoreCase(videoId, voteRequest.getUserName())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "That name has already voted for this stream!");
+        if(voteRequest.getDiffSeconds() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "diffSeconds must be a non-negative integer!");
         }
 
-        voteRequest.setVideoId(videoId);
+        username = username.trim(); 
+ 
+        if (voteRepository.existsByVideoIdIsNullAndUserNameIgnoreCase(username)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "That name has already voted!");
+        }
+
+        voteRequest.setUserName(username); // Trim whitespace from username
+        voteRequest.setVideoId(null); // Ensure the videoId is null for pending votes 
         return voteRepository.save(voteRequest);
     }
 
@@ -49,7 +61,11 @@ public class VoteService {
         return leaderboardRepository.searchLeaderboard(search, pageable);
     }
 
-
-
+    // This method can be called after a stream ends to attribute any pending votes to the stream, 
+    // allowing them to be counted in the final leaderboard 
+    @Transactional 
+    public void attributePendingVotes(String videoId) {
+        voteRepository.attributePendingVotesToStream(videoId); 
+    } 
 
 }
