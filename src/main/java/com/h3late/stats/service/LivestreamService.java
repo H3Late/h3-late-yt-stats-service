@@ -28,10 +28,6 @@ public class LivestreamService {
     private final LivestreamRepository livestreamRepository;
     private final YoutubeApiService youtubeApiService;
 
-    // Inject voteService to allow for attributing pending votes to a stream once it starts, 
-    // which can be used to count those votes in the final leaderboard
-    private final VoteService voteService; 
-
     public Page<Livestream> searchLivestreams(StreamStatus status, TimeStatus timeStatus, String search, Pageable pageable) {
         return livestreamRepository.searchAdvanced(status, timeStatus, search, pageable);
     }
@@ -111,29 +107,27 @@ public class LivestreamService {
                         && liveDetails.getActualStartTime() != null
         ) {
             existingVideo.setStatus((StreamStatus.LIVE));
-
             Instant actualStart = Instant.parse(liveDetails.getActualStartTime());
             existingVideo.setActualStart(actualStart);
-
-            long lateTimeSeconds = java.time.Duration.between(
-                    existingVideo.getScheduledStart(),
-                    actualStart
-            ).getSeconds();
-
-            if (lateTimeSeconds > 10) {
-                existingVideo.setTimeStatus(TimeStatus.LATE);
-            } else if (lateTimeSeconds < 0) {
-                existingVideo.setTimeStatus(TimeStatus.EARLY);
+            if (existingVideo.getScheduledStart() != null) {
+                long lateTimeSeconds = java.time.Duration.between(
+                        existingVideo.getScheduledStart(),
+                        actualStart
+                ).getSeconds();
+                if (lateTimeSeconds > 10) {
+                    existingVideo.setTimeStatus(TimeStatus.LATE);
+                } else if (lateTimeSeconds < 0) {
+                    existingVideo.setTimeStatus(TimeStatus.EARLY);
+                } else {
+                    existingVideo.setTimeStatus(TimeStatus.ON_TIME);
+                }
+                existingVideo.setDiffSeconds(lateTimeSeconds);
+                log.info("Livestream with videoId=[{}] has started. Actual start time: {}, Scheduled start time: {}, Late time (seconds): {}, Time status: {}",
+                        videoId, actualStart, existingVideo.getScheduledStart(), lateTimeSeconds, existingVideo.getTimeStatus()
+                );
             } else {
                 log.warn("Livestream with videoId=[{}] has actualStartTime but no scheduledStartTime. Skipping lateness calculation.", videoId);
             }
-            existingVideo.setDiffSeconds(lateTimeSeconds);
-            log.info("Livestream with videoId=[{}] has started. Actual start time: {}, Scheduled start time: {}, Late time (seconds): {}, Time status: {}",
-                    videoId, actualStart, existingVideo.getScheduledStart(), lateTimeSeconds, existingVideo.getTimeStatus()
-            );
-
-            // Attribute any pending votes to the stream now that it has started, allowing them to be counted in the final leaderboard
-            voteService.attributePendingVotes(videoId);
             hasUpdates = true;
         }
 
@@ -192,15 +186,11 @@ public class LivestreamService {
     private void processCancelledLivestream(String videoId) {
         log.info("Received null message body for videoId=[{}]. Marking livestream as cancelled if it exists.", videoId);
         Optional<Livestream> existingVideo = livestreamRepository.findById(videoId);
-
         if (existingVideo.isPresent()) {
-
             Livestream livestream = existingVideo.get();
             livestream.setStatus(StreamStatus.CANCELLED);
             livestream.setTimeStatus(TimeStatus.CANCELLED);
-            livestreamRepository.save(livestream); 
-            
-
+            livestreamRepository.save(livestream);
             log.info("Marked livestream with videoId=[{}] as cancelled.", videoId);
         } else {
             log.info("No existing livestream found for videoId=[{}] to mark as cancelled.", videoId);
