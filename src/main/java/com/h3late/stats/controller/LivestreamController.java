@@ -1,10 +1,12 @@
 package com.h3late.stats.controller;
 
 import com.h3late.stats.dto.StatsSummaryProjection;
+import com.h3late.stats.dto.YoutubeApiResponseDto;
 import com.h3late.stats.entity.Livestream;
 import com.h3late.stats.entity.StreamStatus;
 import com.h3late.stats.entity.TimeStatus;
 import com.h3late.stats.service.LivestreamService;
+import com.h3late.stats.service.YoutubeApiService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +28,15 @@ import java.util.stream.Collectors;
 class LivestreamController {
 
     private final LivestreamService livestreamService;
+    private final YoutubeApiService youtubeApiService;
+
+    // Read-only YouTube API lookup — no DB writes
+    @GetMapping("/inspect/{videoId}")
+    public ResponseEntity<YoutubeApiResponseDto.VideoItem> inspectVideo(@PathVariable String videoId) {
+        return youtubeApiService.getVideoDetails(videoId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 
     // 1. Single Video Lookup
     @GetMapping("/{id}")
