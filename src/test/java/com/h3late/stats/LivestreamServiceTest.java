@@ -6,6 +6,7 @@ import com.h3late.stats.entity.Livestream;
 import com.h3late.stats.entity.StreamStatus;
 import com.h3late.stats.entity.TimeStatus;
 import com.h3late.stats.repository.LivestreamRepository;
+import com.h3late.stats.service.GameNotificationService;
 import com.h3late.stats.service.LivestreamService;
 import com.h3late.stats.service.VoteService;
 import com.h3late.stats.service.YoutubeApiService;
@@ -36,12 +37,15 @@ public class LivestreamServiceTest {
     private LivestreamRepository livestreamRepository;
     private LivestreamService livestreamService;
     private VoteService voteService;
+    private GameNotificationService gameNotificationService;
+
     @BeforeEach
     public void setUp() {
         youtubeApiService = Mockito.mock(YoutubeApiService.class);
         livestreamRepository = Mockito.mock(LivestreamRepository.class);
-        voteService = Mockito.mock(VoteService.class);  
-        livestreamService = new LivestreamService(livestreamRepository, youtubeApiService, voteService);
+        voteService = Mockito.mock(VoteService.class);
+        gameNotificationService = Mockito.mock(GameNotificationService.class);
+        livestreamService = new LivestreamService(livestreamRepository, youtubeApiService, voteService, gameNotificationService);
     }
 
     // ==================== HELPER METHODS ====================
