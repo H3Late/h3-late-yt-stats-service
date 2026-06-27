@@ -40,7 +40,7 @@ public class ContestSchedulerService {
     @Value("${contest.max-submissions-per-user:3}")
     private int maxSubmissionsPerUser;
 
-    @Value("${contest.vote-refresh-schedule:DAILY}")
+    @Value("${contest.vote-refresh-schedule:WEEKLY}")
     private String voteRefreshSchedule;
 
     private final ContestRepository contestRepo;
