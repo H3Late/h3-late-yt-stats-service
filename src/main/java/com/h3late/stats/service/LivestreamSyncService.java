@@ -34,7 +34,7 @@ public class LivestreamSyncService {
         for (Livestream stream : liveStreams) {
             log.info("Live stream sync: reprocessing videoId=[{}] title='{}'", stream.getVideoId(), stream.getTitle());
             try {
-                livestreamService.processVideoById(stream.getVideoId(), false);
+                livestreamService.processVideoById(stream.getVideoId(), true);
             } catch (Exception e) {
                 log.error("Live stream sync: failed to reprocess videoId=[{}]: {}", stream.getVideoId(), e.getMessage());
             }
