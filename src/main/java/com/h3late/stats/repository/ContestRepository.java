@@ -14,6 +14,7 @@ import java.util.Optional;
 @Repository
 public interface ContestRepository extends JpaRepository<Contest, Long> {
     Optional<Contest> findFirstByStatus(ContestStatus status);
+    List<Contest> findAllByStatus(ContestStatus status);
     Page<Contest> findByStatusOrderByEndDateDesc(ContestStatus status, Pageable pageable);
     List<Contest> findByStatusAndEndDateLessThanEqual(ContestStatus status, Instant now);
 }

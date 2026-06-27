@@ -4,7 +4,6 @@ import com.h3late.stats.dto.*;
 import com.h3late.stats.entity.*;
 import com.h3late.stats.service.AdminKeyValidator;
 import com.h3late.stats.service.ContestClipService;
-import com.h3late.stats.service.ContestSchedulerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -21,7 +20,6 @@ import java.util.List;
 public class ClipContestController {
 
     private final ContestClipService contestClipService;
-    private final ContestSchedulerService contestSchedulerService;
     private final AdminKeyValidator adminKeyValidator;
 
     // -------------------------------------------------------------------------
@@ -51,30 +49,6 @@ public class ClipContestController {
     @GetMapping("/{id}/results")
     public List<ContestResult> getResults(@PathVariable Long id) {
         return contestClipService.getContestResults(id);
-    }
-
-    // -------------------------------------------------------------------------
-    // Schedule management (admin)
-    // -------------------------------------------------------------------------
-
-    @PostMapping("/schedule")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ContestSchedule createSchedule(
-        @RequestHeader("X-Admin-Key") String adminKey,
-        @RequestBody ContestScheduleRequest req
-    ) {
-        adminKeyValidator.validate(adminKey);
-        return contestSchedulerService.createSchedule(req);
-    }
-
-    @GetMapping("/schedule")
-    public Page<ContestSchedule> listSchedules(
-        @RequestHeader("X-Admin-Key") String adminKey,
-        @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "20") int size
-    ) {
-        adminKeyValidator.validate(adminKey);
-        return contestSchedulerService.listSchedules(PageRequest.of(page, size));
     }
 
     // -------------------------------------------------------------------------

@@ -1,22 +1,23 @@
 package com.h3late.stats.service;
 
-import com.h3late.stats.dto.ContestScheduleRequest;
 import com.h3late.stats.entity.*;
+import com.h3late.stats.repository.ContestClipRepository;
 import com.h3late.stats.repository.ContestRepository;
-import com.h3late.stats.repository.ContestScheduleRepository;
+import com.h3late.stats.repository.ContestResultRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @Service
@@ -24,92 +25,117 @@ import java.util.List;
 @Slf4j
 public class ContestSchedulerService {
 
-    private final ContestScheduleRepository scheduleRepo;
+    @Value("${contest.cron:0 0 0 * * SUN}")
+    private String cronExpression;
+
+    @Value("${contest.type:WEEKLY}")
+    private ContestType contestType;
+
+    @Value("${contest.daily-vote-budget:5}")
+    private int dailyVoteBudget;
+
+    @Value("${contest.max-clip-duration-seconds:30}")
+    private int maxClipDurationSeconds;
+
+    @Value("${contest.max-submissions-per-user:3}")
+    private int maxSubmissionsPerUser;
+
+    @Value("${contest.vote-refresh-schedule:DAILY}")
+    private String voteRefreshSchedule;
+
     private final ContestRepository contestRepo;
+    private final ContestClipRepository clipRepo;
+    private final ContestResultRepository resultRepo;
 
+    /**
+     * On startup:
+     * 1. End any active contest whose scheduled end time has already passed.
+     * 2. If no active contest exists after step 1, create one ending at the next cron tick.
+     */
     @EventListener(ApplicationReadyEvent.class)
-    public void onStartup() {
-        log.info("Running contest schedule check on startup");
-        processPendingSchedules();
+    public synchronized void onStartup() {
+        log.info("Contest startup check");
+        endElapsedContests();
+        ensureActiveContest();
     }
 
-    @Scheduled(fixedDelay = 60_000)
-    public void checkSchedules() {
-        processPendingSchedules();
+    /**
+     * On each cron tick: end all active contests, then start a new one ending at the tick after this one.
+     */
+    @Scheduled(cron = "${contest.cron:0 0 0 * * SUN}", zone = "UTC")
+    public synchronized void onCronTick() {
+        log.info("Contest cron tick — rotating contest");
+        endAllActiveContests();
+        startNewContest();
     }
 
-    private synchronized void processPendingSchedules() {
-        List<ContestSchedule> pending = scheduleRepo.findByStatusAndScheduledStartAtLessThanEqual(
-            ScheduleStatus.PENDING, Instant.now()
-        );
+    // --- private ---
 
-        for (ContestSchedule schedule : pending) {
-            try {
-                Contest contest = Contest.builder()
-                    .type(schedule.getType())
-                    .startDate(schedule.getScheduledStartAt())
-                    .endDate(schedule.getScheduledStartAt().plus(schedule.getDurationDays(), ChronoUnit.DAYS))
-                    .status(ContestStatus.ACTIVE)
-                    .dailyVoteBudget(schedule.getDailyVoteBudget())
-                    .maxClipDurationSeconds(schedule.getMaxClipDurationSeconds())
-                    .maxSubmissionsPerUser(schedule.getMaxSubmissionsPerUser())
-                    .voteRefreshSchedule(schedule.getVoteRefreshSchedule())
-                    .build();
+    private void endElapsedContests() {
+        List<Contest> elapsed = contestRepo.findByStatusAndEndDateLessThanEqual(ContestStatus.ACTIVE, Instant.now());
+        elapsed.forEach(this::endContest);
+    }
 
-                contest = contestRepo.save(contest);
+    private void endAllActiveContests() {
+        List<Contest> active = contestRepo.findAllByStatus(ContestStatus.ACTIVE);
+        active.forEach(this::endContest);
+    }
 
-                schedule.setStatus(ScheduleStatus.PROCESSED);
-                schedule.setContestId(contest.getId());
-                scheduleRepo.save(schedule);
+    @Transactional
+    private void endContest(Contest contest) {
+        if (contest.getStatus() != ContestStatus.ACTIVE) return;
 
-                log.info("Started contest id={} from schedule id={}", contest.getId(), schedule.getId());
-            } catch (Exception e) {
-                log.error("Failed to start contest from schedule id={}", schedule.getId(), e);
-                schedule.setStatus(ScheduleStatus.FAILED);
-                schedule.setFailureReason(e.getMessage());
-                scheduleRepo.save(schedule);
-            }
+        List<ContestClip> topClips = clipRepo.findTopWinners(contest.getId(), PageRequest.of(0, 3));
+        for (int i = 0; i < topClips.size(); i++) {
+            ContestClip clip = topClips.get(i);
+            resultRepo.save(ContestResult.builder()
+                .contestId(contest.getId())
+                .rank(i + 1)
+                .clipId(clip.getId())
+                .submitterName(clip.getSubmitterName())
+                .voteCount(clip.getVoteCount())
+                .build());
+        }
+
+        contest.setStatus(ContestStatus.ENDED);
+        contestRepo.save(contest);
+        log.info("Contest id={} ended with {} winner(s)", contest.getId(), topClips.size());
+    }
+
+    private void ensureActiveContest() {
+        boolean hasActive = contestRepo.findFirstByStatus(ContestStatus.ACTIVE).isPresent();
+        if (!hasActive) {
+            log.info("No active contest found — starting one");
+            startNewContest();
         }
     }
 
-    public ContestSchedule createSchedule(ContestScheduleRequest req) {
-        if (req.getType() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Contest type is required");
-        }
-        if (req.getScheduledStartAt() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Scheduled start time is required");
-        }
-        if (req.getDurationDays() <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Duration must be greater than 0");
-        }
-        if (req.getDailyVoteBudget() <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Daily vote budget must be greater than 0");
-        }
-        if (req.getMaxClipDurationSeconds() <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Max clip duration must be greater than 0");
-        }
-        if (req.getMaxSubmissionsPerUser() <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Max submissions per user must be greater than 0");
-        }
-        if (req.getVoteRefreshSchedule() == null || req.getVoteRefreshSchedule().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vote refresh schedule is required (e.g. DAILY or MON,THU)");
-        }
+    private void startNewContest() {
+        Instant now = Instant.now();
+        Instant scheduledEnd = computeNextCronTick(now);
 
-        ContestSchedule schedule = ContestSchedule.builder()
-            .type(req.getType())
-            .scheduledStartAt(req.getScheduledStartAt())
-            .durationDays(req.getDurationDays())
-            .dailyVoteBudget(req.getDailyVoteBudget())
-            .maxClipDurationSeconds(req.getMaxClipDurationSeconds())
-            .maxSubmissionsPerUser(req.getMaxSubmissionsPerUser())
-            .voteRefreshSchedule(req.getVoteRefreshSchedule())
-            .status(ScheduleStatus.PENDING)
+        Contest contest = Contest.builder()
+            .type(contestType)
+            .startDate(now)
+            .endDate(scheduledEnd)
+            .status(ContestStatus.ACTIVE)
+            .dailyVoteBudget(dailyVoteBudget)
+            .maxClipDurationSeconds(maxClipDurationSeconds)
+            .maxSubmissionsPerUser(maxSubmissionsPerUser)
+            .voteRefreshSchedule(voteRefreshSchedule)
             .build();
 
-        return scheduleRepo.save(schedule);
+        contest = contestRepo.save(contest);
+        log.info("Started new contest id={}, ends at {}", contest.getId(), scheduledEnd);
     }
 
-    public Page<ContestSchedule> listSchedules(Pageable pageable) {
-        return scheduleRepo.findAllByOrderByScheduledStartAtDesc(pageable);
+    private Instant computeNextCronTick(Instant from) {
+        CronExpression expr = CronExpression.parse(cronExpression);
+        LocalDateTime fromLocal = LocalDateTime.ofInstant(from, ZoneOffset.UTC);
+        LocalDateTime next = expr.next(fromLocal);
+        if (next == null) {
+            throw new IllegalStateException("Cron expression yielded no next occurrence: " + cronExpression);
+        }
+        return next.toInstant(ZoneOffset.UTC);
     }
 }
