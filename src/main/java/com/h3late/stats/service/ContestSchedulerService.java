@@ -34,7 +34,7 @@ public class ContestSchedulerService {
     @Value("${contest.daily-vote-budget:5}")
     private int dailyVoteBudget;
 
-    @Value("${contest.max-clip-duration-seconds:30}")
+    @Value("${contest.max-clip-duration-seconds:180}")
     private int maxClipDurationSeconds;
 
     @Value("${contest.max-submissions-per-user:3}")
