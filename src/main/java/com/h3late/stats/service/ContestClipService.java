@@ -39,6 +39,16 @@ public class ContestClipService {
         return contestRepo.findFirstByStatus(ContestStatus.ACTIVE);
     }
 
+    @Transactional
+    public Contest patchActiveContest(Integer maxClipDurationSeconds, Integer maxSubmissionsPerUser, Integer dailyVoteBudget) {
+        Contest contest = contestRepo.findFirstByStatus(ContestStatus.ACTIVE)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No active contest"));
+        if (maxClipDurationSeconds != null) contest.setMaxClipDurationSeconds(maxClipDurationSeconds);
+        if (maxSubmissionsPerUser != null) contest.setMaxSubmissionsPerUser(maxSubmissionsPerUser);
+        if (dailyVoteBudget != null) contest.setDailyVoteBudget(dailyVoteBudget);
+        return contestRepo.save(contest);
+    }
+
     public Contest getContest(Long id) {
         return contestRepo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Contest not found"));
@@ -101,7 +111,7 @@ public class ContestClipService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "End timestamp exceeds stream duration");
         }
 
-        long submissionCount = clipRepo.countByContestIdAndSubmitterToken(contestId, req.getSubmitterToken());
+        long submissionCount = clipRepo.countByContestIdAndSubmitterTokenAndRemovedFalse(contestId, req.getSubmitterToken());
         if (submissionCount >= contest.getMaxSubmissionsPerUser()) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                 "Submission limit of " + contest.getMaxSubmissionsPerUser() + " clips per contest reached");
