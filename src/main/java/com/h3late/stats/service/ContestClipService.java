@@ -217,6 +217,10 @@ public class ContestClipService {
     }
 
     public VoterStatusResponse getVoterStatus(Long contestId, String voterToken) {
+        if (voterToken == null || voterToken.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voter token is required");
+        }
+
         Contest contest = getContest(contestId);
 
         Instant periodStart = votePeriodService.getCurrentPeriodStart(contest.getVoteRefreshSchedule());
@@ -251,12 +255,16 @@ public class ContestClipService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "You have already reported this clip");
         }
 
-        return reportRepo.save(ClipReport.builder()
-            .clipId(clipId)
-            .reporterToken(req.getReporterToken())
-            .reason(req.getReason())
-            .description(req.getDescription())
-            .build());
+        try {
+            return reportRepo.save(ClipReport.builder()
+                .clipId(clipId)
+                .reporterToken(req.getReporterToken())
+                .reason(req.getReason())
+                .description(req.getDescription())
+                .build());
+        } catch (DataIntegrityViolationException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "You have already reported this clip");
+        }
     }
 
     // --- Admin ---
