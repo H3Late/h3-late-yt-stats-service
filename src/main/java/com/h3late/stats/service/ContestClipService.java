@@ -7,6 +7,7 @@ import com.h3late.stats.entity.*;
 import com.h3late.stats.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,6 +25,9 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class ContestClipService {
+
+    @Value("${contest.min-clip-duration-seconds:5}")
+    private int minClipDurationSeconds;
 
     private final ContestRepository contestRepo;
     private final ContestClipRepository clipRepo;
@@ -98,8 +102,9 @@ public class ContestClipService {
         if (req.getStartSeconds() < 0 || req.getEndSeconds() <= req.getStartSeconds()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid timestamp range: start must be >= 0 and end must be after start");
         }
-        if (clipDuration < 5) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Clip must be at least 5 seconds long");
+        if (clipDuration < minClipDurationSeconds) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Clip must be at least " + minClipDurationSeconds + " seconds long");
         }
         if (clipDuration > contest.getMaxClipDurationSeconds()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
