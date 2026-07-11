@@ -6,7 +6,13 @@ import lombok.*;
 import java.time.Instant;
 
 @Entity
-@Table(name = "clip_report")
+@Table(
+    name = "clip_report",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uq_clip_report_per_reporter",
+        columnNames = {"clip_id", "reporter_token"}
+    )
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -17,10 +23,10 @@ public class ClipReport {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "clip_id", nullable = false)
     private Long clipId;
 
-    @Column(nullable = false)
+    @Column(name = "reporter_token", nullable = false)
     private String reporterToken;
 
     @Enumerated(EnumType.STRING)
