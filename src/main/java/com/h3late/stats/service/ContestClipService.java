@@ -97,15 +97,7 @@ public class ContestClipService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stream did not start during this contest period");
         }
 
-        int clipDuration = req.getEndSeconds() - req.getStartSeconds();
-
-        if (req.getStartSeconds() < 0 || req.getEndSeconds() <= req.getStartSeconds()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid timestamp range: start must be >= 0 and end must be after start");
-        }
-        if (clipDuration < minClipDurationSeconds) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                "Clip must be at least " + minClipDurationSeconds + " seconds long");
-        }
+        int clipDuration = getClipDuration(req);
         if (clipDuration > contest.getMaxClipDurationSeconds()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Clip exceeds maximum duration of " + contest.getMaxClipDurationSeconds() + " seconds");
@@ -132,6 +124,19 @@ public class ContestClipService {
             .build();
 
         return clipRepo.save(clip);
+    }
+
+    private int getClipDuration(ClipSubmissionRequest req) {
+        int clipDuration = req.getEndSeconds() - req.getStartSeconds();
+
+        if (req.getStartSeconds() < 0 || req.getEndSeconds() <= req.getStartSeconds()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid timestamp range: start must be >= 0 and end must be after start");
+        }
+        if (clipDuration < minClipDurationSeconds) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Clip must be at least " + minClipDurationSeconds + " seconds long");
+        }
+        return clipDuration;
     }
 
     public Page<ContestClip> getClips(Long contestId, Pageable pageable) {
