@@ -69,9 +69,8 @@ public class ContestClipService {
     // --- Eligible streams ---
 
     public List<Livestream> getEligibleStreams(Long contestId) {
-        // TODO: remove — temporarily returns all ENDED streams regardless of contest period
-        getContest(contestId);
-        return livestreamRepo.findEligibleStreams(StreamStatus.ENDED, Instant.EPOCH, Instant.now().plusSeconds(86400));
+        Contest contest = getContest(contestId);
+        return livestreamRepo.findEligibleStreams(StreamStatus.ENDED, contest.getStartDate(), contest.getEndDate());
     }
 
     // --- Clips ---
@@ -88,12 +87,11 @@ public class ContestClipService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stream must have ENDED status to be clipped");
         }
 
-        // TODO: remove — temporarily bypasses contest period validation so any ENDED stream can be clipped
-        // if (stream.getActualStart() == null
-        //         || stream.getActualStart().isBefore(contest.getStartDate())
-        //         || stream.getActualStart().isAfter(contest.getEndDate())) {
-        //     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stream did not start during this contest period");
-        // }
+        if (stream.getActualStart() == null
+                || stream.getActualStart().isBefore(contest.getStartDate())
+                || stream.getActualStart().isAfter(contest.getEndDate())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stream did not start during this contest period");
+        }
 
         int clipDuration = req.getEndSeconds() - req.getStartSeconds();
 
