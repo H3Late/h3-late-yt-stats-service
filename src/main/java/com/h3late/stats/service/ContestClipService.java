@@ -102,13 +102,19 @@ public class ContestClipService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Clip exceeds maximum duration of " + contest.getMaxClipDurationSeconds() + " seconds");
         }
+
+        if (clipDuration < minClipDurationSeconds) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Clip must be at least " + minClipDurationSeconds + " seconds long");
+        }
+
         if (stream.getTotalDurationSeconds() != null && req.getEndSeconds() > stream.getTotalDurationSeconds()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "End timestamp exceeds stream duration");
         }
 
         long submissionCount = clipRepo.countByContestIdAndSubmitterTokenAndRemovedFalse(contestId, req.getSubmitterToken());
         if (submissionCount >= contest.getMaxSubmissionsPerUser()) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
                 "Submission limit of " + contest.getMaxSubmissionsPerUser() + " clips per contest reached");
         }
 
@@ -131,10 +137,6 @@ public class ContestClipService {
 
         if (req.getStartSeconds() < 0 || req.getEndSeconds() <= req.getStartSeconds()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid timestamp range: start must be >= 0 and end must be after start");
-        }
-        if (clipDuration < minClipDurationSeconds) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                "Clip must be at least " + minClipDurationSeconds + " seconds long");
         }
         return clipDuration;
     }
