@@ -4,12 +4,15 @@ import com.h3late.stats.entity.*;
 import com.h3late.stats.repository.ContestClipRepository;
 import com.h3late.stats.repository.ContestRepository;
 import com.h3late.stats.repository.ContestResultRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
@@ -25,8 +28,11 @@ import java.util.List;
 @Slf4j
 public class ContestSchedulerService {
 
-    @Value("${contest.cron:0 0 0 * * SUN}")
-    private String cronExpression;
+    // TODO: consolidate these contest.* @Value fields into a @ConfigurationProperties(prefix = "contest")
+    // class — would fix the IDE "unknown property" warnings on application.yaml (no metadata exists for
+    // ad-hoc @Value keys) and give type-safe/validated binding. Separate cleanup, not part of this PR.
+    @Value("${contest.rotation-cron:0 0 0 * * SUN}")
+    private String contestRotationCron;
 
     @Value("${contest.type:WEEKLY}")
     private ContestType contestType;
@@ -46,6 +52,35 @@ public class ContestSchedulerService {
     private final ContestRepository contestRepo;
     private final ContestClipRepository clipRepo;
     private final ContestResultRepository resultRepo;
+    private final JdbcTemplate jdbcTemplate;
+
+    /**
+     * Fails fast at startup if contest.rotation-cron is not a valid Spring cron expression,
+     * instead of only surfacing the error later inside an ApplicationReadyEvent listener or a
+     * scheduled tick.
+     */
+    @PostConstruct
+    void validateRotationCron() {
+        try {
+            CronExpression.parse(contestRotationCron);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(
+                "Invalid contest.rotation-cron value: '" + contestRotationCron + "'", e);
+        }
+    }
+
+    /**
+     * Enforces "at most one ACTIVE contest" at the database level, so it holds even across
+     * multiple server instances (Hibernate's ddl-auto=update doesn't manage this — there's no
+     * migration tool in this project, so it's created here instead). startNewContest() relies
+     * on the resulting constraint violation to detect and back off from a losing race.
+     */
+    @PostConstruct
+    void ensureSingleActiveContestConstraint() {
+        jdbcTemplate.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_contest_single_active ON contest (status) WHERE status = 'ACTIVE'"
+        );
+    }
 
     /**
      * On startup:
@@ -62,7 +97,7 @@ public class ContestSchedulerService {
     /**
      * On each cron tick: end all active contests, then start a new one ending at the tick after this one.
      */
-    @Scheduled(cron = "${contest.cron:0 0 0 * * SUN}", zone = "UTC")
+    @Scheduled(cron = "${contest.rotation-cron:0 0 0 * * SUN}", zone = "UTC")
     public synchronized void onCronTick() {
         log.info("Contest cron tick — rotating contest");
         endAllActiveContests();
@@ -83,7 +118,13 @@ public class ContestSchedulerService {
 
     @Transactional
     private void endContest(Contest contest) {
-        if (contest.getStatus() != ContestStatus.ACTIVE) return;
+        // Atomically claims the ACTIVE -> ENDED transition. If another instance already ended
+        // this contest, this returns 0 and we skip recomputing/re-recording the winners.
+        int updated = contestRepo.endIfActive(contest.getId());
+        if (updated == 0) {
+            log.info("Contest id={} already ended by another instance — skipping", contest.getId());
+            return;
+        }
 
         List<ContestClip> topClips = clipRepo.findTopWinners(contest.getId(), PageRequest.of(0, 3));
         for (int i = 0; i < topClips.size(); i++) {
@@ -97,8 +138,6 @@ public class ContestSchedulerService {
                 .build());
         }
 
-        contest.setStatus(ContestStatus.ENDED);
-        contestRepo.save(contest);
         log.info("Contest id={} ended with {} winner(s)", contest.getId(), topClips.size());
     }
 
@@ -125,16 +164,20 @@ public class ContestSchedulerService {
             .voteRefreshSchedule(voteRefreshSchedule)
             .build();
 
-        contest = contestRepo.save(contest);
-        log.info("Started new contest id={}, ends at {}", contest.getId(), scheduledEnd);
+        try {
+            contest = contestRepo.save(contest);
+            log.info("Started new contest id={}, ends at {}", contest.getId(), scheduledEnd);
+        } catch (DataIntegrityViolationException e) {
+            log.info("Another instance already started the next active contest — skipping");
+        }
     }
 
     private Instant computeNextCronTick(Instant from) {
-        CronExpression expr = CronExpression.parse(cronExpression);
+        CronExpression expr = CronExpression.parse(contestRotationCron);
         LocalDateTime fromLocal = LocalDateTime.ofInstant(from, ZoneOffset.UTC);
         LocalDateTime next = expr.next(fromLocal);
         if (next == null) {
-            throw new IllegalStateException("Cron expression yielded no next occurrence: " + cronExpression);
+            throw new IllegalStateException("Cron expression yielded no next occurrence: " + contestRotationCron);
         }
         return next.toInstant(ZoneOffset.UTC);
     }
