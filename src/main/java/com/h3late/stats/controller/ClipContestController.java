@@ -136,6 +136,17 @@ public class ClipContestController {
     // Admin — clip removal and report management
     // -------------------------------------------------------------------------
 
+    @PatchMapping("/admin/active")
+    public Contest patchActiveContest(
+        @RequestParam(required = false) Integer maxClipDurationSeconds,
+        @RequestParam(required = false) Integer maxSubmissionsPerUser,
+        @RequestParam(required = false) Integer dailyVoteBudget,
+        @RequestHeader("X-Admin-Key") String adminKey
+    ) {
+        adminKeyValidator.validate(adminKey);
+        return contestClipService.patchActiveContest(maxClipDurationSeconds, maxSubmissionsPerUser, dailyVoteBudget);
+    }
+
     @DeleteMapping("/admin/clips/{clipId}")
     public ContestClip adminRemoveClip(
         @PathVariable Long clipId,

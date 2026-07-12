@@ -12,4 +12,5 @@ public class VoterStatusResponse {
     private int votesRemainingToday;
     private Instant nextPeriodStart;
     private List<Long> votedClipIds;
+    private int submissionsRemaining;
 }

@@ -221,7 +221,10 @@ public class ContestClipService {
             .map(ClipVote::getClipId)
             .toList();
 
-        return new VoterStatusResponse(remaining, nextPeriodStart, votedClipIds);
+        long submissionsUsed = clipRepo.countByContestIdAndSubmitterTokenAndRemovedFalse(contestId, voterToken);
+        int submissionsRemaining = (int) Math.max(0, contest.getMaxSubmissionsPerUser() - submissionsUsed);
+
+        return new VoterStatusResponse(remaining, nextPeriodStart, votedClipIds, submissionsRemaining);
     }
 
     // --- Reports ---
