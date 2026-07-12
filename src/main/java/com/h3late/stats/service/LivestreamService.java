@@ -28,9 +28,7 @@ public class LivestreamService {
     private final LivestreamRepository livestreamRepository;
     private final YoutubeApiService youtubeApiService;
 
-    // Inject voteService to allow for attributing pending votes to a stream once it starts,
-    // which can be used to count those votes in the final leaderboard
-    private final VoteService voteService;
+    private final LatenessPredictionService predictionService;
     private final GameNotificationService gameNotificationService;
 
     public Page<Livestream> searchLivestreams(StreamStatus status, TimeStatus timeStatus, String search, Pageable pageable) {
@@ -137,8 +135,7 @@ public class LivestreamService {
                 log.warn("Livestream with videoId=[{}] has actualStartTime but no scheduledStartTime. Skipping lateness calculation.", videoId);
             }
 
-            // Attribute any pending votes to the stream now that it has started, allowing them to be counted in the final leaderboard
-            voteService.attributePendingVotes(videoId);
+            predictionService.attributePendingPredictions(videoId);
             gameNotificationService.notifyStreamLive(videoId, existingVideo.getTitle());
             hasUpdates = true;
         }

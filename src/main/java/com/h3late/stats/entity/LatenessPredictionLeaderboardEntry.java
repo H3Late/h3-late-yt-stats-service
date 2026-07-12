@@ -10,7 +10,7 @@ import org.hibernate.annotations.Immutable;
 @Immutable
 @Table(name = "latest_stream_leaderboard")
 @Getter
-public class LeaderboardEntry {
+public class LatenessPredictionLeaderboardEntry {
     @Id
     private String userName;
     private Integer userGuess;
