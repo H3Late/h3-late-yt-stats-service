@@ -19,7 +19,7 @@ public interface ContestClipRepository extends JpaRepository<ContestClip, Long> 
 
     Optional<ContestClip> findByIdAndRemovedFalse(Long id);
 
-    long countByContestIdAndSubmitterTokenAndRemovedFalse(Long contestId, String submitterToken);
+    long countByContestIdAndUserTokenAndRemovedFalse(Long contestId, String userToken);
 
     @Query("SELECT cc FROM ContestClip cc WHERE cc.contestId = :contestId AND cc.removed = false ORDER BY cc.voteCount DESC, cc.submittedAt ASC")
     List<ContestClip> findTopWinners(@Param("contestId") Long contestId, Pageable pageable);

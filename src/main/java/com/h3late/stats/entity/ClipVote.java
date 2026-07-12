@@ -30,8 +30,8 @@ public class ClipVote {
     @Column(nullable = false)
     private Long contestId;
 
-    @Column(nullable = false)
-    private String voterToken;
+    @Column(name = "voter_token", nullable = false)
+    private String userToken;
 
     // UTC midnight of the vote period start — shifts when voteRefreshSchedule ticks over
     @Column(nullable = false)

@@ -99,24 +99,24 @@ public class ClipContestController {
         @PathVariable Long clipId,
         @RequestBody VoteRequest req
     ) {
-        contestClipService.castVote(clipId, req.getVoterToken());
+        contestClipService.castVote(clipId, req.getUserToken());
     }
 
     @DeleteMapping("/clips/{clipId}/vote")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void retractVote(
         @PathVariable Long clipId,
-        @RequestParam String voterToken
+        @RequestParam String userToken
     ) {
-        contestClipService.retractVote(clipId, voterToken);
+        contestClipService.retractVote(clipId, userToken);
     }
 
-    @GetMapping("/{contestId}/voter/{voterToken}")
+    @GetMapping("/{contestId}/voter/{userToken}")
     public VoterStatusResponse getVoterStatus(
         @PathVariable Long contestId,
-        @PathVariable String voterToken
+        @PathVariable String userToken
     ) {
-        return contestClipService.getVoterStatus(contestId, voterToken);
+        return contestClipService.getVoterStatus(contestId, userToken);
     }
 
     // -------------------------------------------------------------------------

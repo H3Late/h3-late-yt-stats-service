@@ -35,8 +35,8 @@ public class ContestClip {
     @Column(nullable = false)
     private int endSeconds;
 
-    @Column(nullable = false)
-    private String submitterToken;
+    @Column(name = "submitter_token", nullable = false)
+    private String userToken;
 
     @Column(nullable = false)
     private String submitterName;
