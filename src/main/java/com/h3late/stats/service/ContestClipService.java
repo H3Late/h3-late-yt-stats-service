@@ -7,6 +7,7 @@ import com.h3late.stats.entity.*;
 import com.h3late.stats.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,6 +25,9 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class ContestClipService {
+
+    @Value("${contest.min-clip-duration-seconds:5}")
+    private int minClipDurationSeconds;
 
     private final ContestRepository contestRepo;
     private final ContestClipRepository clipRepo;
@@ -69,9 +73,8 @@ public class ContestClipService {
     // --- Eligible streams ---
 
     public List<Livestream> getEligibleStreams(Long contestId) {
-        // TODO: remove — temporarily returns all ENDED streams regardless of contest period
-        getContest(contestId);
-        return livestreamRepo.findEligibleStreams(StreamStatus.ENDED, Instant.EPOCH, Instant.now().plusSeconds(86400));
+        Contest contest = getContest(contestId);
+        return livestreamRepo.findEligibleStreams(StreamStatus.ENDED, contest.getStartDate(), contest.getEndDate());
     }
 
     // --- Clips ---
@@ -88,32 +91,30 @@ public class ContestClipService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stream must have ENDED status to be clipped");
         }
 
-        // TODO: remove — temporarily bypasses contest period validation so any ENDED stream can be clipped
-        // if (stream.getActualStart() == null
-        //         || stream.getActualStart().isBefore(contest.getStartDate())
-        //         || stream.getActualStart().isAfter(contest.getEndDate())) {
-        //     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stream did not start during this contest period");
-        // }
-
-        int clipDuration = req.getEndSeconds() - req.getStartSeconds();
-
-        if (req.getStartSeconds() < 0 || req.getEndSeconds() <= req.getStartSeconds()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid timestamp range: start must be >= 0 and end must be after start");
+        if (stream.getActualStart() == null
+                || stream.getActualStart().isBefore(contest.getStartDate())
+                || stream.getActualStart().isAfter(contest.getEndDate())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stream did not start during this contest period");
         }
-        if (clipDuration < 5) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Clip must be at least 5 seconds long");
-        }
+
+        int clipDuration = getClipDuration(req);
         if (clipDuration > contest.getMaxClipDurationSeconds()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Clip exceeds maximum duration of " + contest.getMaxClipDurationSeconds() + " seconds");
         }
+
+        if (clipDuration < minClipDurationSeconds) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Clip must be at least " + minClipDurationSeconds + " seconds long");
+        }
+
         if (stream.getTotalDurationSeconds() != null && req.getEndSeconds() > stream.getTotalDurationSeconds()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "End timestamp exceeds stream duration");
         }
 
         long submissionCount = clipRepo.countByContestIdAndSubmitterTokenAndRemovedFalse(contestId, req.getSubmitterToken());
         if (submissionCount >= contest.getMaxSubmissionsPerUser()) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
                 "Submission limit of " + contest.getMaxSubmissionsPerUser() + " clips per contest reached");
         }
 
@@ -129,6 +130,15 @@ public class ContestClipService {
             .build();
 
         return clipRepo.save(clip);
+    }
+
+    private int getClipDuration(ClipSubmissionRequest req) {
+        int clipDuration = req.getEndSeconds() - req.getStartSeconds();
+
+        if (req.getStartSeconds() < 0 || req.getEndSeconds() <= req.getStartSeconds()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid timestamp range: start must be >= 0 and end must be after start");
+        }
+        return clipDuration;
     }
 
     public Page<ContestClip> getClips(Long contestId, Pageable pageable) {
@@ -207,6 +217,10 @@ public class ContestClipService {
     }
 
     public VoterStatusResponse getVoterStatus(Long contestId, String voterToken) {
+        if (voterToken == null || voterToken.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voter token is required");
+        }
+
         Contest contest = getContest(contestId);
 
         Instant periodStart = votePeriodService.getCurrentPeriodStart(contest.getVoteRefreshSchedule());
@@ -244,12 +258,16 @@ public class ContestClipService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "You have already reported this clip");
         }
 
-        return reportRepo.save(ClipReport.builder()
-            .clipId(clipId)
-            .reporterToken(req.getReporterToken())
-            .reason(req.getReason())
-            .description(req.getDescription())
-            .build());
+        try {
+            return reportRepo.save(ClipReport.builder()
+                .clipId(clipId)
+                .reporterToken(req.getReporterToken())
+                .reason(req.getReason())
+                .description(req.getDescription())
+                .build());
+        } catch (DataIntegrityViolationException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "You have already reported this clip");
+        }
     }
 
     // --- Admin ---
