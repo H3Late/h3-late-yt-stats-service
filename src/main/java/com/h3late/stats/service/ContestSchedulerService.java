@@ -7,8 +7,10 @@ import com.h3late.stats.repository.ContestResultRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
@@ -53,6 +55,12 @@ public class ContestSchedulerService {
     private final ContestClipRepository clipRepo;
     private final ContestResultRepository resultRepo;
     private final JdbcTemplate jdbcTemplate;
+
+    // Self-injected proxy, needed so calls to endContest() go through the transactional
+    // AOP proxy instead of bypassing it via self-invocation (this::endContest).
+    @Autowired
+    @Lazy
+    private ContestSchedulerService self;
 
     /**
      * Fails fast at startup if contest.rotation-cron is not a valid Spring cron expression,
@@ -108,16 +116,16 @@ public class ContestSchedulerService {
 
     private void endElapsedContests() {
         List<Contest> elapsed = contestRepo.findByStatusAndEndDateLessThanEqual(ContestStatus.ACTIVE, Instant.now());
-        elapsed.forEach(this::endContest);
+        elapsed.forEach(self::endContest);
     }
 
     private void endAllActiveContests() {
         List<Contest> active = contestRepo.findAllByStatus(ContestStatus.ACTIVE);
-        active.forEach(this::endContest);
+        active.forEach(self::endContest);
     }
 
     @Transactional
-    private void endContest(Contest contest) {
+    public void endContest(Contest contest) {
         // Atomically claims the ACTIVE -> ENDED transition. If another instance already ended
         // this contest, this returns 0 and we skip recomputing/re-recording the winners.
         int updated = contestRepo.endIfActive(contest.getId());
