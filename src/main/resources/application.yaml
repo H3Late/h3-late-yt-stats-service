@@ -37,6 +37,9 @@ server:
   port: 8081
 youtube:
   api-key: ${YOUTUBE_API_KEY}
+game:
+  server:
+    url: ${GAME_SERVER_URL:http://localhost:3001}
 logging:
   level:
     root: INFO

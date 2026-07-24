@@ -15,7 +15,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface LivestreamRepository extends JpaRepository<Livestream, String>, JpaSpecificationExecutor<Livestream> {
@@ -24,6 +23,8 @@ public interface LivestreamRepository extends JpaRepository<Livestream, String>,
 
     @Query(value = "SELECT * FROM h3_stats_by_day", nativeQuery = true)
     List<StatsByDayProjection> getStatsByDay();
+
+    List<Livestream> findAllByStatus(StreamStatus status);
 
     @Query("SELECT l FROM Livestream l WHERE " +
             "(:status IS NULL OR l.status = :status) AND " +

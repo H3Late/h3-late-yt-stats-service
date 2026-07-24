@@ -28,9 +28,10 @@ public class LivestreamService {
     private final LivestreamRepository livestreamRepository;
     private final YoutubeApiService youtubeApiService;
 
-    // Inject voteService to allow for attributing pending votes to a stream once it starts, 
+    // Inject voteService to allow for attributing pending votes to a stream once it starts,
     // which can be used to count those votes in the final leaderboard
-    private final VoteService voteService; 
+    private final VoteService voteService;
+    private final GameNotificationService gameNotificationService;
 
     public Page<Livestream> searchLivestreams(StreamStatus status, TimeStatus timeStatus, String search, Pageable pageable) {
         return livestreamRepository.searchAdvanced(status, timeStatus, search, pageable);
@@ -138,6 +139,7 @@ public class LivestreamService {
 
             // Attribute any pending votes to the stream now that it has started, allowing them to be counted in the final leaderboard
             voteService.attributePendingVotes(videoId);
+            gameNotificationService.notifyStreamLive(videoId, existingVideo.getTitle());
             hasUpdates = true;
         }
 
