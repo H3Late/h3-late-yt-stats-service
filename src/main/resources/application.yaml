@@ -19,7 +19,7 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_HOST}
     consumer:
-      group-id: ${KAFKA_GROUP_ID}
+      group-id: ${KAFKA_GROUP_ID:stats-service-group}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       auto-offset-reset: earliest
@@ -31,8 +31,8 @@ spring:
         security.protocol: SASL_SSL
         sasl.mechanism: PLAIN
         sasl.jaas.config: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_API_KEY}" password="${KAFKA_API_SECRET}";'
-kafka:
-  topic: ${KAFKA_TOPIC}
+    video-events-topic: ${KAFKA_VIDEO_EVENTS_TOPIC:dev-livestreams}
+    tomato-chat-topic: ${KAFKA_TOMATO_EVENTS_TOPIC:tomato-chat}
 server:
   port: 8081
 youtube:

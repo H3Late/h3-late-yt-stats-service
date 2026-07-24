@@ -1,5 +1,0 @@
-target
-.git
-.mvn
-.DS_Store
-docker-compose.yml

@@ -1,19 +1,10 @@
 package com.h3late.stats.dto;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-@AllArgsConstructor
-@NoArgsConstructor
-@Data
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class VideoEventDto {
-    private String title;
-}
-
+import java.time.OffsetDateTime;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -29,4 +20,5 @@ public class TomatoEventDto {
     private OffsetDateTime publishedAt;
     private OffsetDateTime detectedAt;
     private int tomatoCount;
+    private long runningTotal;
 }
