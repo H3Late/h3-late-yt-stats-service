@@ -40,6 +40,18 @@ youtube:
 game:
   server:
     url: ${GAME_SERVER_URL:http://localhost:3001}
+admin:
+  key: ${ADMIN_KEY:}
+contest:
+  # Spring cron (6 fields: second minute hour day-of-month month day-of-week)
+  # Default: every Sunday at midnight UTC. Override via CONTEST_ROTATION_CRON env var.
+  rotation-cron: ${CONTEST_ROTATION_CRON:0 0 0 * * SUN}
+  type: ${CONTEST_TYPE:WEEKLY}
+  daily-vote-budget: ${CONTEST_DAILY_VOTE_BUDGET:5}
+  min-clip-duration-seconds: ${CONTEST_MIN_CLIP_DURATION_SECONDS:5}
+  max-clip-duration-seconds: ${CONTEST_MAX_CLIP_DURATION_SECONDS:180}
+  max-submissions-per-user: ${CONTEST_MAX_SUBMISSIONS_PER_USER:3}
+  vote-refresh-schedule: ${CONTEST_VOTE_REFRESH_SCHEDULE:DAILY}
 logging:
   level:
     root: INFO

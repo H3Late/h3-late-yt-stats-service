@@ -14,6 +14,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 
 @Repository
@@ -25,6 +26,9 @@ public interface LivestreamRepository extends JpaRepository<Livestream, String>,
     List<StatsByDayProjection> getStatsByDay();
 
     List<Livestream> findAllByStatus(StreamStatus status);
+
+    @Query("SELECT l FROM Livestream l WHERE l.status = :status AND l.actualStart >= :startDate AND l.actualStart <= :endDate ORDER BY l.actualStart DESC")
+    List<Livestream> findEligibleStreams(@Param("status") StreamStatus status, @Param("startDate") Instant startDate, @Param("endDate") Instant endDate);
 
     @Query("SELECT l FROM Livestream l WHERE " +
             "(:status IS NULL OR l.status = :status) AND " +
