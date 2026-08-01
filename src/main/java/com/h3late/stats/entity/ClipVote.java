@@ -33,6 +33,10 @@ public class ClipVote {
     @Column(name = "voter_token", nullable = false)
     private String userToken;
 
+    // Populated at write time for logged-in voters (fast "my history" lookups). The
+    // voter_token column above remains the source of truth for per-user limit enforcement.
+    private Long userId;
+
     // UTC midnight of the vote period start — shifts when voteRefreshSchedule ticks over
     @Column(nullable = false)
     private Instant votePeriodStart;

@@ -38,6 +38,10 @@ public class ContestClip {
     @Column(name = "submitter_token", nullable = false)
     private String userToken;
 
+    // Populated at write time for logged-in submitters (fast "my history" lookups). The
+    // submitter_token column above remains the source of truth for per-user limit enforcement.
+    private Long userId;
+
     @Column(nullable = false)
     private String submitterName;
 

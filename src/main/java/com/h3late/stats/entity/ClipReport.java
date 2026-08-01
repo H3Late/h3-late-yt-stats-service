@@ -29,6 +29,10 @@ public class ClipReport {
     @Column(name = "reporter_token", nullable = false)
     private String reporterToken;
 
+    // Populated at write time for logged-in reporters (fast "my history" lookups). The
+    // reporter_token column above remains the source of truth for the one-report-per-clip check.
+    private Long userId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ReportReason reason;

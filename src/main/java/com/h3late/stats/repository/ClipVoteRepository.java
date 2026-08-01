@@ -2,6 +2,9 @@ package com.h3late.stats.repository;
 
 import com.h3late.stats.entity.ClipVote;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -19,4 +22,8 @@ public interface ClipVoteRepository extends JpaRepository<ClipVote, Long> {
 
     // Un-vote: find the specific vote to delete
     Optional<ClipVote> findByClipIdAndUserTokenAndVotePeriodStart(Long clipId, String userToken, Instant votePeriodStart);
+
+    @Modifying
+    @Query("UPDATE ClipVote cv SET cv.userId = :userId WHERE cv.userToken = :token AND cv.userId IS NULL")
+    int attachUserId(@Param("token") String token, @Param("userId") Long userId);
 }

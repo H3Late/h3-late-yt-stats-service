@@ -2,6 +2,7 @@ package com.h3late.stats.controller;
 
 import com.h3late.stats.dto.*;
 import com.h3late.stats.entity.*;
+import com.h3late.stats.security.IdentityResolver;
 import com.h3late.stats.service.AdminKeyValidator;
 import com.h3late.stats.service.ContestClipService;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +23,7 @@ public class ClipContestController {
 
     private final ContestClipService contestClipService;
     private final AdminKeyValidator adminKeyValidator;
+    private final IdentityResolver identityResolver;
 
     // -------------------------------------------------------------------------
     // Contest lifecycle
@@ -68,9 +71,12 @@ public class ClipContestController {
     @ResponseStatus(HttpStatus.CREATED)
     public ContestClip submitClip(
         @PathVariable Long contestId,
-        @RequestBody ClipSubmissionRequest req
+        @RequestBody ClipSubmissionRequest req,
+        Authentication authentication
     ) {
-        return contestClipService.submitClip(contestId, req);
+        String identity = identityResolver.resolve(authentication, req.getUserToken());
+        Long userId = identityResolver.resolveUserId(authentication);
+        return contestClipService.submitClip(contestId, req, identity, userId);
     }
 
     @GetMapping("/{contestId}/clips")
@@ -97,26 +103,33 @@ public class ClipContestController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void castVote(
         @PathVariable Long clipId,
-        @RequestBody VoteRequest req
+        @RequestBody VoteRequest req,
+        Authentication authentication
     ) {
-        contestClipService.castVote(clipId, req.getUserToken());
+        String identity = identityResolver.resolve(authentication, req.getUserToken());
+        Long userId = identityResolver.resolveUserId(authentication);
+        contestClipService.castVote(clipId, identity, userId);
     }
 
     @DeleteMapping("/clips/{clipId}/vote")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void retractVote(
         @PathVariable Long clipId,
-        @RequestParam String userToken
+        @RequestParam String userToken,
+        Authentication authentication
     ) {
-        contestClipService.retractVote(clipId, userToken);
+        String identity = identityResolver.resolve(authentication, userToken);
+        contestClipService.retractVote(clipId, identity);
     }
 
     @GetMapping("/{contestId}/voter/{userToken}")
     public VoterStatusResponse getVoterStatus(
         @PathVariable Long contestId,
-        @PathVariable String userToken
+        @PathVariable String userToken,
+        Authentication authentication
     ) {
-        return contestClipService.getVoterStatus(contestId, userToken);
+        String identity = identityResolver.resolve(authentication, userToken);
+        return contestClipService.getVoterStatus(contestId, identity);
     }
 
     // -------------------------------------------------------------------------
@@ -127,9 +140,12 @@ public class ClipContestController {
     @ResponseStatus(HttpStatus.CREATED)
     public ClipReport reportClip(
         @PathVariable Long clipId,
-        @RequestBody ClipReportRequest req
+        @RequestBody ClipReportRequest req,
+        Authentication authentication
     ) {
-        return contestClipService.reportClip(clipId, req);
+        String identity = identityResolver.resolve(authentication, req.getReporterToken());
+        Long userId = identityResolver.resolveUserId(authentication);
+        return contestClipService.reportClip(clipId, req, identity, userId);
     }
 
     // -------------------------------------------------------------------------

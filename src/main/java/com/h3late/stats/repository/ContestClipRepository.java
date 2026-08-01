@@ -31,4 +31,8 @@ public interface ContestClipRepository extends JpaRepository<ContestClip, Long> 
     @Modifying
     @Query("UPDATE ContestClip cc SET cc.voteCount = cc.voteCount - 1 WHERE cc.id = :clipId AND cc.voteCount > 0")
     void decrementVoteCount(@Param("clipId") Long clipId);
+
+    @Modifying
+    @Query("UPDATE ContestClip cc SET cc.userId = :userId WHERE cc.userToken = :token AND cc.userId IS NULL")
+    int attachUserId(@Param("token") String token, @Param("userId") Long userId);
 }

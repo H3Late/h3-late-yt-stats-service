@@ -1,6 +1,19 @@
 spring:
   application:
     name: yt-stats-service
+  session:
+    store-type: jdbc
+    jdbc:
+      initialize-schema: always
+    timeout: 7d
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope: openid,profile,email
   datasource:
     url: ${DB_URL}
     username: ${DB_USER}
@@ -35,13 +48,28 @@ kafka:
   topic: ${KAFKA_TOPIC}
 server:
   port: 8081
+  # Railway terminates TLS at its edge and forwards plain HTTP internally; without this, Spring
+  # Security can build the wrong (http:// or internal-hostname) OAuth2 redirect_uri.
+  forward-headers-strategy: framework
 youtube:
   api-key: ${YOUTUBE_API_KEY}
 game:
   server:
     url: ${GAME_SERVER_URL:http://localhost:3001}
+  token:
+    # Shared identically with game-server via Railway env vars — HS256 needs a secret of at
+    # least 32 bytes. Left blank by default so local dev without this feature still boots;
+    # GameTokenService fails clearly (at issue-time, not startup) if unset.
+    secret: ${GAME_TOKEN_SECRET:}
+    ttl-seconds: ${GAME_TOKEN_TTL_SECONDS:300}
 admin:
   key: ${ADMIN_KEY:}
+session:
+  cookie:
+    domain: ${SESSION_COOKIE_DOMAIN:}
+    secure: ${SESSION_COOKIE_SECURE:true}
+frontend:
+  post-login-url: ${FRONTEND_POST_LOGIN_URL:https://h3late.com}
 contest:
   # Spring cron (6 fields: second minute hour day-of-month month day-of-week)
   # Default: every Sunday at midnight UTC. Override via CONTEST_ROTATION_CRON env var.
