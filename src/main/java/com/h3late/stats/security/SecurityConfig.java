@@ -24,6 +24,15 @@ public class SecurityConfig {
     @Value("${frontend.post-login-url}")
     private String postLoginUrl;
 
+    // Same property SessionCookieConfig uses for the SESSION cookie. The XSRF-TOKEN cookie needs
+    // it too: the double-submit CSRF pattern requires frontend JS to read this cookie via
+    // document.cookie and echo it back as a header, and document.cookie only exposes cookies
+    // scoped to the current page's host. Host-only (no Domain) is fine for SESSION, since the
+    // browser auto-attaches that one to matching requests without JS ever reading it — but it
+    // breaks XSRF-TOKEN as soon as frontend and API are on different subdomains.
+    @Value("${session.cookie.domain:}")
+    private String cookieDomain;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -33,7 +42,7 @@ public class SecurityConfig {
                 // /api/auth/logout). The plain (non-XOR) request handler keeps that simple
                 // read-cookie-echo-header pattern working without deferred-token ceremony.
                 .csrf(csrf -> csrf
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRepository(csrfTokenRepository())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                         // Existing clip-contest endpoints authenticate via opaque request-body
                         // tokens, not cookies, so CSRF (which protects ambient cookie credentials)
@@ -62,5 +71,15 @@ public class SecurityConfig {
         SimpleUrlAuthenticationSuccessHandler handler = new SimpleUrlAuthenticationSuccessHandler(postLoginUrl);
         handler.setAlwaysUseDefaultTargetUrl(true);
         return handler;
+    }
+
+    private CookieCsrfTokenRepository csrfTokenRepository() {
+        CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        // CookieCsrfTokenRepository has no public setCookieDomain in this Spring Security version
+        // (7.0.3) — setCookieCustomizer is the supported way to set Domain on the cookie it emits.
+        if (!cookieDomain.isBlank()) {
+            repository.setCookieCustomizer(builder -> builder.domain(cookieDomain));
+        }
+        return repository;
     }
 }
