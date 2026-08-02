@@ -68,6 +68,7 @@ session:
   cookie:
     domain: ${SESSION_COOKIE_DOMAIN:}
     secure: ${SESSION_COOKIE_SECURE:true}
+    same-site: ${SESSION_COOKIE_SAME_SITE:None}
 frontend:
   post-login-url: ${FRONTEND_POST_LOGIN_URL:https://h3late.com}
 contest:
