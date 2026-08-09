@@ -3,12 +3,25 @@ package com.h3late.stats.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.session.config.SessionRepositoryCustomizer;
+import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
+import org.springframework.session.jdbc.config.annotation.web.http.EnableJdbcHttpSession;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.DefaultCookieSerializer;
 
 import java.time.Duration;
 
 /**
+ * @EnableJdbcHttpSession is what actually activates Spring Session JDBC — the
+ * spring-session-jdbc dependency plus spring.session.* properties in application.yaml are not
+ * enough on their own. Confirmed the hard way: without this annotation present anywhere, no
+ * `spring_session`/`spring_session_attributes` tables ever got created despite
+ * `initialize-schema: always`, because the configuration class that reads that property is only
+ * registered when this annotation triggers it. Every "session" up to that point was actually
+ * Tomcat's own native in-memory HttpSession (cookie name JSESSIONID) — invisible to Postgres,
+ * and not shared across multiple autoscaled Railway instances, silently defeating the entire
+ * point of using Spring Session JDBC here.
+ *
  * Blank domain (the default) leaves the cookie scoped to the exact host serving the response —
  * needed for local dev (localhost) where a ".h3late.com" domain attribute would be rejected by
  * the browser. Set SESSION_COOKIE_DOMAIN in production if frontend/API ever share a real parent
@@ -28,6 +41,7 @@ import java.time.Duration;
  * override both SESSION_COOKIE_SAME_SITE=Lax and SESSION_COOKIE_SECURE=false.
  */
 @Configuration
+@EnableJdbcHttpSession
 public class SessionCookieConfig {
 
     @Value("${session.cookie.domain:}")
@@ -39,12 +53,11 @@ public class SessionCookieConfig {
     @Value("${session.cookie.same-site:None}")
     private String sameSite;
 
-    // Bound from the same property Spring Session JDBC uses for server-side session expiry, so
-    // the cookie and the Postgres-backed session it points at always agree — without an explicit
-    // Max-Age, the cookie defaults to browser-session-only (deleted on browser close) regardless
-    // of how long the session record itself stays valid, which isn't what we want: the cookie
-    // should persist in the browser for exactly as long as the session is valid server-side
-    // (unless the user clears it themselves).
+    // Single source of truth for how long a session stays valid, applied below to both the
+    // cookie's Max-Age and the actual JDBC session repository's expiry (via the customizer bean),
+    // so the two can't drift apart. @EnableJdbcHttpSession's own maxInactiveIntervalInSeconds
+    // attribute can't reference this property directly (it's a plain int, no placeholder support),
+    // which is exactly why the customizer bean exists instead of just setting that attribute.
     @Value("${spring.session.timeout:7d}")
     private Duration sessionTimeout;
 
@@ -59,5 +72,10 @@ public class SessionCookieConfig {
         serializer.setUseSecureCookie(secure);
         serializer.setCookieMaxAge((int) sessionTimeout.getSeconds());
         return serializer;
+    }
+
+    @Bean
+    public SessionRepositoryCustomizer<JdbcIndexedSessionRepository> sessionRepositoryCustomizer() {
+        return repository -> repository.setDefaultMaxInactiveInterval(sessionTimeout);
     }
 }

@@ -15,6 +15,7 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfigurationSource;
 
@@ -47,8 +48,9 @@ public class SecurityConfig {
                 // Frontend reads the XSRF-TOKEN cookie and echoes it back as a header on
                 // state-changing requests to session-bearing endpoints (currently just
                 // /api/auth/logout — claiming is no longer a client-triggered endpoint at all).
-                // The plain (non-XOR) request handler keeps that simple read-cookie-echo-header
-                // pattern working without deferred-token ceremony.
+                // The plain (non-XOR) request handler avoids the BREACH-mitigation encoding the
+                // XOR variant applies — without it, the raw cookie value wouldn't match what a
+                // simple "read cookie, echo as header" SPA is expected to send.
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
@@ -56,6 +58,15 @@ public class SecurityConfig {
                         // tokens, not cookies, so CSRF (which protects ambient cookie credentials)
                         // doesn't apply to them and requiring it would break today's frontend.
                         .ignoringRequestMatchers("/api/contest/**"))
+                // CsrfTokenRequestAttributeHandler only stores a *lazy* token supplier as a
+                // request attribute — CsrfFilter only resolves it (which is what actually writes
+                // the XSRF-TOKEN cookie) for requests it's validating, i.e. unsafe methods to
+                // non-ignored paths. A pure REST API has no server-rendered view to otherwise
+                // force that resolution on a GET, so without this filter the cookie is never
+                // issued until the first state-changing request — meaning a fresh browser's
+                // first POST (e.g. the first logout after login) is guaranteed to 403 with no
+                // cookie yet to echo back. Forces resolution on every request instead.
+                .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/auth/game-token").authenticated()
                         .anyRequest().permitAll())
