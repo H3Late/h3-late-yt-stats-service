@@ -24,13 +24,15 @@ public class LatenessPredictionService {
         this.leaderboardRepository = leaderboardRepository;
     }
 
-    public LatenessPrediction submitPrediction(LatenessPredictionRequest request, String identity) {
+    public LatenessPrediction submitPrediction(LatenessPredictionRequest request, String identity, String userName) {
 
         validatePredictionRequest(request, identity);
 
+        // videoId is intentionally left unset (null): this prediction is for whichever stream
+        // goes live next, attributed later by attributePendingPredictions() once one actually does.
         LatenessPrediction prediction = LatenessPrediction.builder()
-            .userId(request.getUserId())
-            .userName(request.getUserName().trim())
+            .userId(identity)
+            .userName(userName)
             .diffSeconds(request.getDiffSeconds())
             .build();
 
@@ -42,17 +44,12 @@ public class LatenessPredictionService {
     }
 
     private void validatePredictionRequest(LatenessPredictionRequest request, String identity) {
-        if (request.getUserName().trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username cannot be empty!");
-        }
-
         if (request.getDiffSeconds() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "diffSeconds must be a non-negative integer!");
         }
         if (predictionRepository.existsByVideoIdIsNullAndUserIdIgnoreCase(identity)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User has already voted!");
         }
-
     }
 
     @Transactional

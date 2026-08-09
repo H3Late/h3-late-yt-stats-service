@@ -33,5 +33,6 @@ public class LatenessPrediction {
     @Column(nullable = false)
     private Integer diffSeconds;
 
+    @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 }
