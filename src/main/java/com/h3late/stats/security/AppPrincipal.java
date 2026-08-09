@@ -1,5 +1,6 @@
 package com.h3late.stats.security;
 
+import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
@@ -19,12 +20,26 @@ import java.util.Map;
  */
 public class AppPrincipal implements OidcUser, Serializable {
 
+    private static final long serialVersionUID = 1L;
+
+    // Not exposed via @Getter — nothing outside this class should reach through to the raw
+    // delegate; the OidcUser interface methods below already forward what's needed from it.
+    // Concrete OidcUser implementations Spring hands us here (e.g. DefaultOidcUser) are
+    // Serializable at runtime even though the field's static type (an interface) isn't
+    // guaranteed to be — that's exactly what javac's [serial] lint warning is flagging.
     private final OidcUser delegate;
+
+    @Getter
     private final Long userId;
+    @Getter
     private final String username;
+    @Getter
     private final String discriminator;
+    @Getter
     private final String email;
+    @Getter
     private final String avatarUrl;
+    @Getter
     private final boolean newAccount;
 
     public AppPrincipal(OidcUser delegate, Long userId, String username, String discriminator, String email, String avatarUrl, boolean newAccount) {
@@ -35,30 +50,6 @@ public class AppPrincipal implements OidcUser, Serializable {
         this.email = email;
         this.avatarUrl = avatarUrl;
         this.newAccount = newAccount;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public String getDiscriminator() {
-        return discriminator;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getAvatarUrl() {
-        return avatarUrl;
-    }
-
-    public boolean isNewAccount() {
-        return newAccount;
     }
 
     @Override

@@ -34,11 +34,12 @@ public class AccountClaimService {
         if (anonymousToken == null || anonymousToken.isBlank()) {
             return ClaimResult.none();
         }
-        if (tokenClaimRepo.existsByUserId(userId)) {
-            return ClaimResult.none();
-        }
 
         try {
+            if (tokenClaimRepo.existsByUserId(userId)) {
+                return ClaimResult.none();
+            }
+
             Optional<TokenClaim> existing = tokenClaimRepo.findByToken(anonymousToken);
             if (existing.isPresent()) {
                 if (!existing.get().getUserId().equals(userId)) {
