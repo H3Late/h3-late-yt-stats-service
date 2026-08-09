@@ -1,9 +1,11 @@
 package com.h3late.stats.service;
 
+import com.h3late.stats.dto.LatenessPredictionRequest;
 import com.h3late.stats.entity.LatenessPrediction;
 import com.h3late.stats.entity.LatenessPredictionLeaderboardEntry;
 import com.h3late.stats.repository.LatenessPredictionLeaderboardRepository;
 import com.h3late.stats.repository.LatenessPredictionRepository;
+import com.h3late.stats.security.IdentityResolver;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -22,30 +24,35 @@ public class LatenessPredictionService {
         this.leaderboardRepository = leaderboardRepository;
     }
 
-    public LatenessPrediction submitPrediction(LatenessPrediction request) {
-        String username = request.getUserName();
+    public LatenessPrediction submitPrediction(LatenessPredictionRequest request, String identity) {
 
-        if (username == null || username.trim().isEmpty()) {
+        validatePredictionRequest(request, identity);
+
+        LatenessPrediction prediction = LatenessPrediction.builder()
+            .userId(request.getUserId())
+            .userName(request.getUserName().trim())
+            .diffSeconds(request.getDiffSeconds())
+            .build();
+
+        return predictionRepository.save(prediction);
+    }
+
+    public Page<LatenessPredictionLeaderboardEntry> getLatestLeaderboard(String search, Pageable pageable) {
+        return leaderboardRepository.searchLeaderboard(search, pageable);
+    }
+
+    private void validatePredictionRequest(LatenessPredictionRequest request, String identity) {
+        if (request.getUserName().trim().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username cannot be empty!");
         }
 
         if (request.getDiffSeconds() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "diffSeconds must be a non-negative integer!");
         }
-
-        username = username.trim();
-
-        if (predictionRepository.existsByVideoIdIsNullAndUserNameIgnoreCase(username)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "That name has already voted!");
+        if (predictionRepository.existsByVideoIdIsNullAndUserIdIgnoreCase(identity)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "User has already voted!");
         }
 
-        request.setUserName(username);
-        request.setVideoId(null);
-        return predictionRepository.save(request);
-    }
-
-    public Page<LatenessPredictionLeaderboardEntry> getLatestLeaderboard(String search, Pageable pageable) {
-        return leaderboardRepository.searchLeaderboard(search, pageable);
     }
 
     @Transactional

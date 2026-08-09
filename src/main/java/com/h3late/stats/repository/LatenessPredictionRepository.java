@@ -11,6 +11,8 @@ public interface LatenessPredictionRepository extends JpaRepository<LatenessPred
 
     boolean existsByVideoIdIsNullAndUserNameIgnoreCase(String userName);
 
+    boolean existsByVideoIdIsNullAndUserIdIgnoreCase(String userId);
+
     @Modifying
     @Query("UPDATE LatenessPrediction v SET v.videoId = :videoId WHERE v.videoId is NULL")
     int attributePendingPredictionsToStream(@Param("videoId") String videoId);
