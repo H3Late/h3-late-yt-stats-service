@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
@@ -60,7 +61,8 @@ public class SecurityConfig {
                         .anyRequest().permitAll())
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo.oidcUserService(appOidcUserService))
-                        .successHandler(claimOnFirstLoginSuccessHandler()))
+                        .successHandler(claimOnFirstLoginSuccessHandler())
+                        .failureHandler(loginFailureHandler()))
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler()))
@@ -91,10 +93,24 @@ public class SecurityConfig {
                     linkedSomething = result.claimedAnything();
                 }
             }
-            String separator = postLoginUrl.contains("?") ? "&" : "?";
-            String targetUrl = linkedSomething ? postLoginUrl + separator + "linked=true" : postLoginUrl;
+            String targetUrl = linkedSomething ? withParam(postLoginUrl, "linked", "true") : postLoginUrl;
             response.sendRedirect(targetUrl);
         };
+    }
+
+    /**
+     * Covers both a user declining Google's consent screen and a genuine server-side failure
+     * (e.g. account creation itself throwing) — either way, redirect back to the frontend with a
+     * generic error signal instead of falling through to Spring Security's default /login?error,
+     * which this backend doesn't serve anything for.
+     */
+    private AuthenticationFailureHandler loginFailureHandler() {
+        return (request, response, exception) -> response.sendRedirect(withParam(postLoginUrl, "loginError", "true"));
+    }
+
+    private static String withParam(String url, String key, String value) {
+        String separator = url.contains("?") ? "&" : "?";
+        return url + separator + key + "=" + value;
     }
 
     private static String readCookie(HttpServletRequest request, String name) {
