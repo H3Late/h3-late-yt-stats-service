@@ -15,15 +15,15 @@ import java.util.Optional;
 public interface ClipVoteRepository extends JpaRepository<ClipVote, Long> {
 
     // Budget check: how many votes has this user cast in the current period for this contest
-    long countByUserTokenAndContestIdAndVotePeriodStart(String userToken, Long contestId, Instant votePeriodStart);
+    long countByUserIdAndContestIdAndVotePeriodStart(String userId, Long contestId, Instant votePeriodStart);
 
     // Voter status: which clips did this user vote for in the current period
-    List<ClipVote> findByUserTokenAndContestIdAndVotePeriodStart(String userToken, Long contestId, Instant votePeriodStart);
+    List<ClipVote> findByUserIdAndContestIdAndVotePeriodStart(String userId, Long contestId, Instant votePeriodStart);
 
     // Un-vote: find the specific vote to delete
-    Optional<ClipVote> findByClipIdAndUserTokenAndVotePeriodStart(Long clipId, String userToken, Instant votePeriodStart);
+    Optional<ClipVote> findByClipIdAndUserIdAndVotePeriodStart(Long clipId, String userId, Instant votePeriodStart);
 
     @Modifying
-    @Query("UPDATE ClipVote cv SET cv.userId = :userId WHERE cv.userToken = :token AND cv.userId IS NULL")
-    int attachUserId(@Param("token") String token, @Param("userId") Long userId);
+    @Query("UPDATE ClipVote cv SET cv.userId = :newIdentity WHERE cv.userId = :oldToken")
+    int reassignUserId(@Param("oldToken") String oldToken, @Param("newIdentity") String newIdentity);
 }

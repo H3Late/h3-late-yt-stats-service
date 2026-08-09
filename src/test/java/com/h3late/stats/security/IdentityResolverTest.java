@@ -40,6 +40,13 @@ public class IdentityResolverTest {
     }
 
     @Test
+    public void resolve_withNullAuthentication_andForgedAccountIdentityFallback_throwsBadRequest() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> identityResolver.resolve(null, "u:1"));
+        assertEquals(400, ex.getStatusCode().value());
+    }
+
+    @Test
     public void resolve_withAuthenticatedAppPrincipal_returnsCanonicalUserId() {
         Authentication authentication = authenticatedAs(42L);
 
@@ -62,7 +69,7 @@ public class IdentityResolverTest {
     }
 
     private Authentication authenticatedAs(Long userId) {
-        AppPrincipal principal = new AppPrincipal(null, userId, "Danny", "482913", "danny@example.com", null);
+        AppPrincipal principal = new AppPrincipal(null, userId, "Danny", String.valueOf(userId), "danny@example.com", null, false);
         Authentication authentication = Mockito.mock(Authentication.class);
         Mockito.when(authentication.isAuthenticated()).thenReturn(true);
         Mockito.when(authentication.getPrincipal()).thenReturn(principal);

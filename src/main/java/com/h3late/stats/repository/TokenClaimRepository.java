@@ -10,4 +10,6 @@ import java.util.Optional;
 public interface TokenClaimRepository extends JpaRepository<TokenClaim, Long> {
 
     Optional<TokenClaim> findByToken(String token);
+
+    boolean existsByUserId(Long userId);
 }

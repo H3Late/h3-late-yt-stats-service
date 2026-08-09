@@ -20,9 +20,6 @@ public class AppUser {
     @Column(nullable = false)
     private String username;
 
-    @Column(nullable = false, unique = true, length = 6)
-    private String discriminator;
-
     private String email;
 
     private String avatarUrl;
@@ -35,5 +32,14 @@ public class AppUser {
     @PrePersist
     void prePersist() {
         createdAt = Instant.now();
+    }
+
+    /**
+     * Derived, not stored: disambiguating a colliding display name only needs *some* value
+     * that's unique per account and never changes — the primary key already is exactly that,
+     * for free. No generation, no collision handling, no separate column to keep in sync.
+     */
+    public String getDiscriminator() {
+        return String.valueOf(id);
     }
 }

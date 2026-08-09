@@ -2,10 +2,12 @@ package com.h3late.stats.service;
 
 import com.h3late.stats.entity.AppUser;
 import com.h3late.stats.entity.AuthProvider;
+import com.h3late.stats.entity.LinkedIdentity;
 import com.h3late.stats.repository.AppUserRepository;
 import com.h3late.stats.repository.LinkedIdentityRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.dao.DataIntegrityViolationException;
 
@@ -27,29 +29,30 @@ public class AppUserFactoryTest {
     }
 
     @Test
-    public void createWithIdentity_retriesOnDiscriminatorCollision() {
-        AppUser saved = AppUser.builder().id(1L).username("Danny").discriminator("482913").build();
-        when(appUserRepo.save(any(AppUser.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate discriminator"))
-                .thenReturn(saved);
+    public void createWithIdentity_savesUserAndLinkedIdentity() {
+        AppUser saved = AppUser.builder().id(1L).username("Danny").build();
+        when(appUserRepo.save(any(AppUser.class))).thenReturn(saved);
 
         AppUser result = appUserFactory.createWithIdentity(
                 AuthProvider.GOOGLE, "google-sub-1", "Danny", "danny@example.com", null);
 
         assertEquals(saved, result);
-        verify(appUserRepo, times(2)).save(any(AppUser.class));
-        verify(linkedIdentityRepo, times(1)).save(any());
+
+        ArgumentCaptor<LinkedIdentity> captor = ArgumentCaptor.forClass(LinkedIdentity.class);
+        verify(linkedIdentityRepo).save(captor.capture());
+        assertEquals(1L, captor.getValue().getUserId());
+        assertEquals(AuthProvider.GOOGLE, captor.getValue().getProvider());
+        assertEquals("google-sub-1", captor.getValue().getProviderUserId());
     }
 
     @Test
-    public void createWithIdentity_exhaustsRetries_throwsIllegalState() {
+    public void createWithIdentity_concurrentCollision_propagatesException() {
         when(appUserRepo.save(any(AppUser.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate discriminator"));
+                .thenThrow(new DataIntegrityViolationException("duplicate provider identity"));
 
-        assertThrows(IllegalStateException.class, () -> appUserFactory.createWithIdentity(
+        assertThrows(DataIntegrityViolationException.class, () -> appUserFactory.createWithIdentity(
                 AuthProvider.GOOGLE, "google-sub-1", "Danny", "danny@example.com", null));
 
-        verify(appUserRepo, times(10)).save(any(AppUser.class));
         verify(linkedIdentityRepo, never()).save(any());
     }
 }

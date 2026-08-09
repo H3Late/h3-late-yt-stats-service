@@ -19,7 +19,7 @@ public interface ContestClipRepository extends JpaRepository<ContestClip, Long> 
 
     Optional<ContestClip> findByIdAndRemovedFalse(Long id);
 
-    long countByContestIdAndUserTokenAndRemovedFalse(Long contestId, String userToken);
+    long countByContestIdAndUserIdAndRemovedFalse(Long contestId, String userId);
 
     @Query("SELECT cc FROM ContestClip cc WHERE cc.contestId = :contestId AND cc.removed = false ORDER BY cc.voteCount DESC, cc.submittedAt ASC")
     List<ContestClip> findTopWinners(@Param("contestId") Long contestId, Pageable pageable);
@@ -33,6 +33,6 @@ public interface ContestClipRepository extends JpaRepository<ContestClip, Long> 
     void decrementVoteCount(@Param("clipId") Long clipId);
 
     @Modifying
-    @Query("UPDATE ContestClip cc SET cc.userId = :userId WHERE cc.userToken = :token AND cc.userId IS NULL")
-    int attachUserId(@Param("token") String token, @Param("userId") Long userId);
+    @Query("UPDATE ContestClip cc SET cc.userId = :newIdentity WHERE cc.userId = :oldToken")
+    int reassignUserId(@Param("oldToken") String oldToken, @Param("newIdentity") String newIdentity);
 }

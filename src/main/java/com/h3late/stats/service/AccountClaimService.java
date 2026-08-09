@@ -5,17 +5,23 @@ import com.h3late.stats.repository.ClipReportRepository;
 import com.h3late.stats.repository.ClipVoteRepository;
 import com.h3late.stats.repository.ContestClipRepository;
 import com.h3late.stats.repository.TokenClaimRepository;
+import com.h3late.stats.security.AccountIdentity;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
+/**
+ * Claiming now happens automatically, server-side, at the moment a new account is created
+ * (see SecurityConfig's post-login success handler) — never client-triggered, never on a
+ * returning login. Best-effort: a failure here must never block account creation/login.
+ */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AccountClaimService {
 
     private final TokenClaimRepository tokenClaimRepo;
@@ -23,44 +29,49 @@ public class AccountClaimService {
     private final ClipVoteRepository voteRepo;
     private final ClipReportRepository reportRepo;
 
-    /**
-     * Idempotent: safe to call on every login. Does not rewrite historical userToken/voterToken/
-     * reporterToken values, only attaches userId — a known, accepted narrow gap (see plan doc).
-     */
     @Transactional
-    public ClaimResult claim(Long userId, String anonymousToken) {
+    public ClaimResult claimIfEligible(Long userId, String anonymousToken) {
         if (anonymousToken == null || anonymousToken.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "anonymousToken is required");
+            return ClaimResult.none();
         }
-
-        Optional<TokenClaim> existing = tokenClaimRepo.findByToken(anonymousToken);
-        if (existing.isPresent()) {
-            requireOwnedBy(existing.get(), userId);
-            return new ClaimResult(true, 0, 0, 0);
+        if (tokenClaimRepo.existsByUserId(userId)) {
+            return ClaimResult.none();
         }
 
         try {
-            tokenClaimRepo.save(TokenClaim.builder().token(anonymousToken).userId(userId).build());
-        } catch (DataIntegrityViolationException e) {
-            // Lost a race against a concurrent claim of the same token.
-            TokenClaim winner = tokenClaimRepo.findByToken(anonymousToken).orElseThrow(() -> e);
-            requireOwnedBy(winner, userId);
-            return new ClaimResult(true, 0, 0, 0);
+            Optional<TokenClaim> existing = tokenClaimRepo.findByToken(anonymousToken);
+            if (existing.isPresent()) {
+                if (!existing.get().getUserId().equals(userId)) {
+                    log.warn("Skipping claim: token already linked to a different account (userId={})", userId);
+                }
+                return ClaimResult.none();
+            }
+
+            try {
+                tokenClaimRepo.save(TokenClaim.builder().token(anonymousToken).userId(userId).build());
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Skipping claim: lost a race on token claim (userId={})", userId);
+                return ClaimResult.none();
+            }
+
+            String newIdentity = AccountIdentity.of(userId);
+            int clips = clipRepo.reassignUserId(anonymousToken, newIdentity);
+            int votes = voteRepo.reassignUserId(anonymousToken, newIdentity);
+            int reports = reportRepo.reassignUserId(anonymousToken, newIdentity);
+            return new ClaimResult(clips, votes, reports);
+        } catch (Exception e) {
+            log.warn("Best-effort claim failed for userId={}", userId, e);
+            return ClaimResult.none();
         }
-
-        int clips = clipRepo.attachUserId(anonymousToken, userId);
-        int votes = voteRepo.attachUserId(anonymousToken, userId);
-        int reports = reportRepo.attachUserId(anonymousToken, userId);
-
-        return new ClaimResult(false, clips, votes, reports);
     }
 
-    private void requireOwnedBy(TokenClaim claim, Long userId) {
-        if (!claim.getUserId().equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "This token is already linked to a different account");
+    public record ClaimResult(int clipsClaimed, int votesClaimed, int reportsClaimed) {
+        public static ClaimResult none() {
+            return new ClaimResult(0, 0, 0);
         }
-    }
 
-    public record ClaimResult(boolean alreadyClaimed, int clipsClaimed, int votesClaimed, int reportsClaimed) {
+        public boolean claimedAnything() {
+            return clipsClaimed > 0 || votesClaimed > 0 || reportsClaimed > 0;
+        }
     }
 }

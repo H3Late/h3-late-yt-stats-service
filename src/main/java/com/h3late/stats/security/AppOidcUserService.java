@@ -23,13 +23,14 @@ public class AppOidcUserService extends OidcUserService {
         String providerUserId = oidcUser.getSubject();
         String displayName = oidcUser.getFullName() != null ? oidcUser.getFullName() : oidcUser.getEmail();
 
-        AppUser user = accountService.upsertFromProvider(
+        AccountService.UpsertResult result = accountService.upsertFromProvider(
                 AuthProvider.GOOGLE,
                 providerUserId,
                 displayName,
                 oidcUser.getEmail(),
                 oidcUser.getPicture());
+        AppUser user = result.user();
 
-        return new AppPrincipal(oidcUser, user.getId(), user.getUsername(), user.getDiscriminator(), user.getEmail(), user.getAvatarUrl());
+        return new AppPrincipal(oidcUser, user.getId(), user.getUsername(), user.getDiscriminator(), user.getEmail(), user.getAvatarUrl(), result.newAccount());
     }
 }

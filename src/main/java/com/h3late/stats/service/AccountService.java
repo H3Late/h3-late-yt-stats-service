@@ -6,6 +6,7 @@ import com.h3late.stats.entity.LinkedIdentity;
 import com.h3late.stats.repository.AppUserRepository;
 import com.h3late.stats.repository.LinkedIdentityRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -19,25 +20,27 @@ public class AccountService {
     private final LinkedIdentityRepository linkedIdentityRepo;
     private final AppUserFactory appUserFactory;
 
+    public record UpsertResult(AppUser user, boolean newAccount) {
+    }
+
     /**
      * Provider-agnostic upsert: called from a Google-specific OidcUserService today, and from a
      * Discord/other provider's OAuth2UserService later — neither this method nor AppUser/LinkedIdentity
      * need to change to add a second provider.
      */
-    public AppUser upsertFromProvider(AuthProvider provider, String providerUserId, String displayName, String email, String avatarUrl) {
+    public UpsertResult upsertFromProvider(AuthProvider provider, String providerUserId, String displayName, String email, String avatarUrl) {
         Optional<LinkedIdentity> existing = linkedIdentityRepo.findByProviderAndProviderUserId(provider, providerUserId);
         if (existing.isPresent()) {
-            return touchLastLogin(existing.get().getUserId());
+            return new UpsertResult(touchLastLogin(existing.get().getUserId()), false);
         }
 
         try {
-            return appUserFactory.createWithIdentity(provider, providerUserId, displayName, email, avatarUrl);
-        } catch (IllegalStateException exhausted) {
-            // Retries were exhausted — check whether that's because a concurrent request for the
-            // same provider identity won the race in the meantime (not a discriminator collision).
+            return new UpsertResult(appUserFactory.createWithIdentity(provider, providerUserId, displayName, email, avatarUrl), true);
+        } catch (DataIntegrityViolationException e) {
+            // Lost a concurrent race to create this identity — the winning request already exists.
             return linkedIdentityRepo.findByProviderAndProviderUserId(provider, providerUserId)
-                    .map(link -> touchLastLogin(link.getUserId()))
-                    .orElseThrow(() -> exhausted);
+                    .map(link -> new UpsertResult(touchLastLogin(link.getUserId()), false))
+                    .orElseThrow(() -> e);
         }
     }
 

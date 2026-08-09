@@ -7,10 +7,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Folds logged-in identity into the existing token-based columns (userToken/voterToken/
- * reporterToken) rather than changing their meaning: logged-in callers resolve to a canonical
- * "u:<id>" string, guests keep using their raw localStorage token. Both flow into the exact same
- * repository query methods and DB unique constraints that existed before accounts did.
+ * Produces the single value stored in ContestClip/ClipVote/ClipReport's userId column: a
+ * canonical "u:<id>" string for logged-in callers (see AccountIdentity), or the caller's raw
+ * guest token otherwise. Both flow into the exact same repository query methods and DB unique
+ * constraints — logged-in vs. guest is just a different source for the same identity value.
  */
 @Component
 public class IdentityResolver {
@@ -18,10 +18,15 @@ public class IdentityResolver {
     public String resolve(Authentication authentication, String fallbackToken) {
         Long userId = resolveUserId(authentication);
         if (userId != null) {
-            return "u:" + userId;
+            return AccountIdentity.of(userId);
         }
         if (fallbackToken == null || fallbackToken.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token is required");
+        }
+        // Guest tokens are always UUIDs and can never legitimately take this shape — reject
+        // rather than let an unauthenticated caller inject/spoof a resolved account identity.
+        if (AccountIdentity.isAccountIdentity(fallbackToken)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid token");
         }
         return fallbackToken;
     }

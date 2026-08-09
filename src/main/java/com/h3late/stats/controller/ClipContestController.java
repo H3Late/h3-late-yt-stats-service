@@ -75,8 +75,7 @@ public class ClipContestController {
         Authentication authentication
     ) {
         String identity = identityResolver.resolve(authentication, req.getUserToken());
-        Long userId = identityResolver.resolveUserId(authentication);
-        return contestClipService.submitClip(contestId, req, identity, userId);
+        return contestClipService.submitClip(contestId, req, identity);
     }
 
     @GetMapping("/{contestId}/clips")
@@ -107,8 +106,7 @@ public class ClipContestController {
         Authentication authentication
     ) {
         String identity = identityResolver.resolve(authentication, req.getUserToken());
-        Long userId = identityResolver.resolveUserId(authentication);
-        contestClipService.castVote(clipId, identity, userId);
+        contestClipService.castVote(clipId, identity);
     }
 
     @DeleteMapping("/clips/{clipId}/vote")
@@ -144,8 +142,7 @@ public class ClipContestController {
         Authentication authentication
     ) {
         String identity = identityResolver.resolve(authentication, req.getReporterToken());
-        Long userId = identityResolver.resolveUserId(authentication);
-        return contestClipService.reportClip(clipId, req, identity, userId);
+        return contestClipService.reportClip(clipId, req, identity);
     }
 
     // -------------------------------------------------------------------------

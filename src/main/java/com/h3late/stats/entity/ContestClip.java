@@ -35,12 +35,10 @@ public class ContestClip {
     @Column(nullable = false)
     private int endSeconds;
 
-    @Column(name = "submitter_token", nullable = false)
-    private String userToken;
-
-    // Populated at write time for logged-in submitters (fast "my history" lookups). The
-    // submitter_token column above remains the source of truth for per-user limit enforcement.
-    private Long userId;
+    // Either a guest's raw UUID token or "u:<AppUser.id>" for a logged-in submitter (see
+    // AccountIdentity) — a String, not a real FK, since it has to hold both shapes in one column.
+    @Column(nullable = false)
+    private String userId;
 
     @Column(nullable = false)
     private String submitterName;

@@ -80,7 +80,7 @@ public class ContestClipService {
     // --- Clips ---
 
     @Transactional
-    public ContestClip submitClip(Long contestId, ClipSubmissionRequest req, String identity, Long userId) {
+    public ContestClip submitClip(Long contestId, ClipSubmissionRequest req, String identity) {
         Contest contest = getActiveContestById(contestId);
         validateSubmissionRequest(req);
 
@@ -112,7 +112,7 @@ public class ContestClipService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "End timestamp exceeds stream duration");
         }
 
-        long submissionCount = clipRepo.countByContestIdAndUserTokenAndRemovedFalse(contestId, identity);
+        long submissionCount = clipRepo.countByContestIdAndUserIdAndRemovedFalse(contestId, identity);
         if (submissionCount >= contest.getMaxSubmissionsPerUser()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                 "Submission limit of " + contest.getMaxSubmissionsPerUser() + " clips per contest reached");
@@ -125,8 +125,7 @@ public class ContestClipService {
             .description(req.getDescription() != null ? req.getDescription().trim() : null)
             .startSeconds(req.getStartSeconds())
             .endSeconds(req.getEndSeconds())
-            .userToken(identity)
-            .userId(userId)
+            .userId(identity)
             .submitterName(req.getSubmitterName().trim())
             .build();
 
@@ -155,7 +154,7 @@ public class ContestClipService {
     // --- Voting ---
 
     @Transactional
-    public void castVote(Long clipId, String identity, Long userId) {
+    public void castVote(Long clipId, String identity) {
         ContestClip clip = clipRepo.findByIdAndRemovedFalse(clipId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Clip not found"));
 
@@ -168,7 +167,7 @@ public class ContestClipService {
 
         Instant periodStart = votePeriodService.getCurrentPeriodStart(contest.getVoteRefreshSchedule());
 
-        long votesUsed = voteRepo.countByUserTokenAndContestIdAndVotePeriodStart(identity, contest.getId(), periodStart);
+        long votesUsed = voteRepo.countByUserIdAndContestIdAndVotePeriodStart(identity, contest.getId(), periodStart);
         if (votesUsed >= contest.getDailyVoteBudget()) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                 "Vote budget of " + contest.getDailyVoteBudget() + " exhausted for this period");
@@ -178,8 +177,7 @@ public class ContestClipService {
             voteRepo.save(ClipVote.builder()
                 .clipId(clipId)
                 .contestId(contest.getId())
-                .userToken(identity)
-                .userId(userId)
+                .userId(identity)
                 .votePeriodStart(periodStart)
                 .build());
 
@@ -203,7 +201,7 @@ public class ContestClipService {
 
         Instant periodStart = votePeriodService.getCurrentPeriodStart(contest.getVoteRefreshSchedule());
 
-        ClipVote vote = voteRepo.findByClipIdAndUserTokenAndVotePeriodStart(clipId, identity, periodStart)
+        ClipVote vote = voteRepo.findByClipIdAndUserIdAndVotePeriodStart(clipId, identity, periodStart)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No vote found for this clip in the current period"));
 
         voteRepo.delete(vote);
@@ -216,16 +214,16 @@ public class ContestClipService {
         Instant periodStart = votePeriodService.getCurrentPeriodStart(contest.getVoteRefreshSchedule());
         Instant nextPeriodStart = votePeriodService.getNextPeriodStart(contest.getVoteRefreshSchedule());
 
-        long votesUsed = voteRepo.countByUserTokenAndContestIdAndVotePeriodStart(identity, contestId, periodStart);
+        long votesUsed = voteRepo.countByUserIdAndContestIdAndVotePeriodStart(identity, contestId, periodStart);
         int remaining = (int) Math.max(0, contest.getDailyVoteBudget() - votesUsed);
 
         List<Long> votedClipIds = voteRepo
-            .findByUserTokenAndContestIdAndVotePeriodStart(identity, contestId, periodStart)
+            .findByUserIdAndContestIdAndVotePeriodStart(identity, contestId, periodStart)
             .stream()
             .map(ClipVote::getClipId)
             .toList();
 
-        long submissionsUsed = clipRepo.countByContestIdAndUserTokenAndRemovedFalse(contestId, identity);
+        long submissionsUsed = clipRepo.countByContestIdAndUserIdAndRemovedFalse(contestId, identity);
         int submissionsRemaining = (int) Math.max(0, contest.getMaxSubmissionsPerUser() - submissionsUsed);
 
         return new VoterStatusResponse(remaining, nextPeriodStart, votedClipIds, submissionsRemaining);
@@ -233,7 +231,7 @@ public class ContestClipService {
 
     // --- Reports ---
 
-    public ClipReport reportClip(Long clipId, ClipReportRequest req, String identity, Long userId) {
+    public ClipReport reportClip(Long clipId, ClipReportRequest req, String identity) {
         if (req.getReason() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Report reason is required");
         }
@@ -241,15 +239,14 @@ public class ContestClipService {
         clipRepo.findByIdAndRemovedFalse(clipId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Clip not found"));
 
-        if (reportRepo.existsByClipIdAndReporterToken(clipId, identity)) {
+        if (reportRepo.existsByClipIdAndUserId(clipId, identity)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "You have already reported this clip");
         }
 
         try {
             return reportRepo.save(ClipReport.builder()
                 .clipId(clipId)
-                .reporterToken(identity)
-                .userId(userId)
+                .userId(identity)
                 .reason(req.getReason())
                 .description(req.getDescription())
                 .build());

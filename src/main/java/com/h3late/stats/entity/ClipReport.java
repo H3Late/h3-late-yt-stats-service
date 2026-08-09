@@ -10,7 +10,7 @@ import java.time.Instant;
     name = "clip_report",
     uniqueConstraints = @UniqueConstraint(
         name = "uq_clip_report_per_reporter",
-        columnNames = {"clip_id", "reporter_token"}
+        columnNames = {"clip_id", "user_id"}
     )
 )
 @Data
@@ -26,12 +26,10 @@ public class ClipReport {
     @Column(name = "clip_id", nullable = false)
     private Long clipId;
 
-    @Column(name = "reporter_token", nullable = false)
-    private String reporterToken;
-
-    // Populated at write time for logged-in reporters (fast "my history" lookups). The
-    // reporter_token column above remains the source of truth for the one-report-per-clip check.
-    private Long userId;
+    // Either a guest's raw UUID token or "u:<AppUser.id>" for a logged-in reporter (see
+    // AccountIdentity) — a String, not a real FK, since it has to hold both shapes in one column.
+    @Column(nullable = false)
+    private String userId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

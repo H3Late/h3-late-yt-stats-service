@@ -25,14 +25,16 @@ public class AppPrincipal implements OidcUser, Serializable {
     private final String discriminator;
     private final String email;
     private final String avatarUrl;
+    private final boolean newAccount;
 
-    public AppPrincipal(OidcUser delegate, Long userId, String username, String discriminator, String email, String avatarUrl) {
+    public AppPrincipal(OidcUser delegate, Long userId, String username, String discriminator, String email, String avatarUrl, boolean newAccount) {
         this.delegate = delegate;
         this.userId = userId;
         this.username = username;
         this.discriminator = discriminator;
         this.email = email;
         this.avatarUrl = avatarUrl;
+        this.newAccount = newAccount;
     }
 
     public Long getUserId() {
@@ -53,6 +55,10 @@ public class AppPrincipal implements OidcUser, Serializable {
 
     public String getAvatarUrl() {
         return avatarUrl;
+    }
+
+    public boolean isNewAccount() {
+        return newAccount;
     }
 
     @Override

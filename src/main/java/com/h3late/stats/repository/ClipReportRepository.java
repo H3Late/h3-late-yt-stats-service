@@ -13,9 +13,9 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ClipReportRepository extends JpaRepository<ClipReport, Long> {
     Page<ClipReport> findByStatus(ReportStatus status, Pageable pageable);
-    boolean existsByClipIdAndReporterToken(Long clipId, String reporterToken);
+    boolean existsByClipIdAndUserId(Long clipId, String userId);
 
     @Modifying
-    @Query("UPDATE ClipReport cr SET cr.userId = :userId WHERE cr.reporterToken = :token AND cr.userId IS NULL")
-    int attachUserId(@Param("token") String token, @Param("userId") Long userId);
+    @Query("UPDATE ClipReport cr SET cr.userId = :newIdentity WHERE cr.userId = :oldToken")
+    int reassignUserId(@Param("oldToken") String oldToken, @Param("newIdentity") String newIdentity);
 }

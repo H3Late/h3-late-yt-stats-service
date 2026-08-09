@@ -6,9 +6,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 /**
- * Hibernate's ddl-auto=update adds the new nullable user_id columns themselves fine, but index
- * creation on already-existing tables is unreliable under ddl-auto=update in this project (no
- * migration tool exists here) — same reasoning as ContestSchedulerService.ensureSingleActiveContestConstraint().
+ * Supports "my history" style lookups across all of an account's clips/votes/reports by
+ * user_id (the collapsed identity column — see AccountIdentity). Index creation on
+ * already-existing tables is unreliable under ddl-auto=update in this project (no migration tool
+ * exists here) — same reasoning as ContestSchedulerService.ensureSingleActiveContestConstraint().
  */
 @Service
 @RequiredArgsConstructor

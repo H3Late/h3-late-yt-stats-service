@@ -9,13 +9,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 public class AccountClaimServiceTest {
@@ -36,22 +34,35 @@ public class AccountClaimServiceTest {
     }
 
     @Test
-    public void claim_withBlankToken_throwsBadRequest() {
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> accountClaimService.claim(1L, ""));
-        assertEquals(400, ex.getStatusCode().value());
+    public void claimIfEligible_withBlankToken_isNoop() {
+        AccountClaimService.ClaimResult result = accountClaimService.claimIfEligible(1L, "");
+
+        assertFalse(result.claimedAnything());
+        verifyNoInteractions(tokenClaimRepo, clipRepo, voteRepo, reportRepo);
     }
 
     @Test
-    public void claim_newToken_attachesHistoryAndReturnsCounts() {
+    public void claimIfEligible_userAlreadyHasClaim_isNoop() {
+        when(tokenClaimRepo.existsByUserId(1L)).thenReturn(true);
+
+        AccountClaimService.ClaimResult result = accountClaimService.claimIfEligible(1L, "anon-token");
+
+        assertFalse(result.claimedAnything());
+        verify(tokenClaimRepo, never()).findByToken(any());
+        verifyNoInteractions(clipRepo, voteRepo, reportRepo);
+    }
+
+    @Test
+    public void claimIfEligible_newToken_attachesHistoryAndReturnsCounts() {
+        when(tokenClaimRepo.existsByUserId(1L)).thenReturn(false);
         when(tokenClaimRepo.findByToken("anon-token")).thenReturn(Optional.empty());
-        when(clipRepo.attachUserId("anon-token", 1L)).thenReturn(2);
-        when(voteRepo.attachUserId("anon-token", 1L)).thenReturn(5);
-        when(reportRepo.attachUserId("anon-token", 1L)).thenReturn(0);
+        when(clipRepo.reassignUserId("anon-token", "u:1")).thenReturn(2);
+        when(voteRepo.reassignUserId("anon-token", "u:1")).thenReturn(5);
+        when(reportRepo.reassignUserId("anon-token", "u:1")).thenReturn(0);
 
-        AccountClaimService.ClaimResult result = accountClaimService.claim(1L, "anon-token");
+        AccountClaimService.ClaimResult result = accountClaimService.claimIfEligible(1L, "anon-token");
 
-        assertFalse(result.alreadyClaimed());
+        assertTrue(result.claimedAnything());
         assertEquals(2, result.clipsClaimed());
         assertEquals(5, result.votesClaimed());
         assertEquals(0, result.reportsClaimed());
@@ -59,51 +70,28 @@ public class AccountClaimServiceTest {
     }
 
     @Test
-    public void claim_calledTwiceBySameUser_isIdempotent() {
-        TokenClaim existing = TokenClaim.builder().token("anon-token").userId(1L).build();
+    public void claimIfEligible_tokenAlreadyOwnedByDifferentUser_isNoop() {
+        when(tokenClaimRepo.existsByUserId(1L)).thenReturn(false);
+        TokenClaim existing = TokenClaim.builder().token("anon-token").userId(999L).build();
         when(tokenClaimRepo.findByToken("anon-token")).thenReturn(Optional.of(existing));
 
-        AccountClaimService.ClaimResult result = accountClaimService.claim(1L, "anon-token");
+        AccountClaimService.ClaimResult result = accountClaimService.claimIfEligible(1L, "anon-token");
 
-        assertTrue(result.alreadyClaimed());
+        assertFalse(result.claimedAnything());
         verify(tokenClaimRepo, never()).save(any());
         verifyNoInteractions(clipRepo, voteRepo, reportRepo);
     }
 
     @Test
-    public void claim_tokenOwnedByDifferentUser_throwsConflict() {
-        TokenClaim existing = TokenClaim.builder().token("anon-token").userId(999L).build();
-        when(tokenClaimRepo.findByToken("anon-token")).thenReturn(Optional.of(existing));
-
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> accountClaimService.claim(1L, "anon-token"));
-        assertEquals(409, ex.getStatusCode().value());
-    }
-
-    @Test
-    public void claim_concurrentClaimBySameUser_isTreatedAsIdempotent() {
-        when(tokenClaimRepo.findByToken("anon-token"))
-                .thenReturn(Optional.empty())
-                .thenReturn(Optional.of(TokenClaim.builder().token("anon-token").userId(1L).build()));
+    public void claimIfEligible_concurrentClaimRace_isNoop() {
+        when(tokenClaimRepo.existsByUserId(1L)).thenReturn(false);
+        when(tokenClaimRepo.findByToken("anon-token")).thenReturn(Optional.empty());
         when(tokenClaimRepo.save(any(TokenClaim.class)))
                 .thenThrow(new DataIntegrityViolationException("concurrent claim"));
 
-        AccountClaimService.ClaimResult result = accountClaimService.claim(1L, "anon-token");
+        AccountClaimService.ClaimResult result = accountClaimService.claimIfEligible(1L, "anon-token");
 
-        assertTrue(result.alreadyClaimed());
+        assertFalse(result.claimedAnything());
         verifyNoInteractions(clipRepo, voteRepo, reportRepo);
-    }
-
-    @Test
-    public void claim_concurrentClaimByDifferentUser_throwsConflict() {
-        when(tokenClaimRepo.findByToken("anon-token"))
-                .thenReturn(Optional.empty())
-                .thenReturn(Optional.of(TokenClaim.builder().token("anon-token").userId(999L).build()));
-        when(tokenClaimRepo.save(any(TokenClaim.class)))
-                .thenThrow(new DataIntegrityViolationException("concurrent claim"));
-
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> accountClaimService.claim(1L, "anon-token"));
-        assertEquals(409, ex.getStatusCode().value());
     }
 }
