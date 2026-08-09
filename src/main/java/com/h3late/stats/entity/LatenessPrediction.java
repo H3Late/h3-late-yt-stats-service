@@ -28,7 +28,11 @@ public class LatenessPrediction {
     private String userName;
 
     @Column(nullable = false)
+    private String userId;
+
+    @Column(nullable = false)
     private Integer diffSeconds;
 
+    @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 }

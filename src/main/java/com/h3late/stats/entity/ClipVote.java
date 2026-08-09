@@ -10,7 +10,7 @@ import java.time.Instant;
     name = "clip_vote",
     uniqueConstraints = @UniqueConstraint(
         name = "uq_clip_vote_per_period",
-        columnNames = {"clip_id", "voter_token", "vote_period_start"}
+        columnNames = {"clip_id", "user_id", "vote_period_start"}
     )
 )
 @Data
@@ -30,8 +30,10 @@ public class ClipVote {
     @Column(nullable = false)
     private Long contestId;
 
-    @Column(name = "voter_token", nullable = false)
-    private String userToken;
+    // Either a guest's raw UUID token or "u:<AppUser.id>" for a logged-in voter (see
+    // AccountIdentity) — a String, not a real FK, since it has to hold both shapes in one column.
+    @Column(nullable = false)
+    private String userId;
 
     // UTC midnight of the vote period start — shifts when voteRefreshSchedule ticks over
     @Column(nullable = false)

@@ -35,8 +35,10 @@ public class ContestClip {
     @Column(nullable = false)
     private int endSeconds;
 
-    @Column(name = "submitter_token", nullable = false)
-    private String userToken;
+    // Either a guest's raw UUID token or "u:<AppUser.id>" for a logged-in submitter (see
+    // AccountIdentity) — a String, not a real FK, since it has to hold both shapes in one column.
+    @Column(nullable = false)
+    private String userId;
 
     @Column(nullable = false)
     private String submitterName;
